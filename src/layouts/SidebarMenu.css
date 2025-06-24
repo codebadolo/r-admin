@@ -1,0 +1,62 @@
+/* SidebarMenu.css */
+
+.sidebar-logo {
+  height: 64px;
+  margin: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: rgba(255, 255, 255, 0.2);
+  padding: 0 16px;
+  color: white;
+  font-weight: bold;
+  font-size: 20px;
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.3s ease;
+}
+
+.sidebar-logo:hover {
+  background-color: rgba(255, 255, 255, 0.35);
+}
+
+.ant-layout-sider {
+  transition: all 0.3s ease;
+}
+
+.ant-layout-sider-trigger {
+  background-color: #001529 !important;
+}
+
+.ant-menu-dark, .ant-menu-dark .ant-menu-sub {
+  background-color: #001529;
+}
+
+.ant-menu-dark .ant-menu-item-selected {
+  background-color: #1890ff !important;
+  font-weight: 600;
+  color: white !important;
+}
+
+.ant-menu-dark .ant-menu-item:hover {
+  background-color: rgba(24, 144, 255, 0.2);
+  color: #1890ff !important;
+}
+
+.ant-menu-submenu-title {
+  font-weight: 500;
+}
+
+.ant-menu-submenu-arrow {
+  color: #1890ff;
+}
+
+.ant-menu-dark .ant-menu-item-icon {
+  font-size: 18px;
+  transition: color 0.3s ease;
+}
+
+.ant-menu-dark .ant-menu-item:hover .ant-menu-item-icon,
+.ant-menu-dark .ant-menu-item-selected .ant-menu-item-icon {
+  color: #1890ff;
+}
