@@ -1,13 +1,13 @@
 import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
 import { Button, Form, Input, Modal, Table, Typography } from 'antd';
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 const { Title } = Typography;
 
 const AttributsVariantes = ({ data = [], onChange }) => {
   const [attributes, setAttributes] = useState(data);
   const [form] = Form.useForm();
-  const [modalVisible, setModalVisible] = React.useState(false);
+  const [modalVisible, setModalVisible] = useState(false);
 
   useEffect(() => {
     onChange(attributes);
@@ -42,14 +42,24 @@ const AttributsVariantes = ({ data = [], onChange }) => {
   return (
     <>
       <Title level={4}>Attributs et Variantes</Title>
-      <Button type="dashed" icon={<PlusOutlined />} onClick={() => setModalVisible(true)} style={{ marginBottom: 16 }}>
+      <Button
+        type="dashed"
+        icon={<PlusOutlined />}
+        onClick={() => setModalVisible(true)}
+        style={{ marginBottom: 16 }}
+      >
         Ajouter un attribut
       </Button>
-      <Table dataSource={attributes} columns={columns} rowKey={(record, index) => index} pagination={false} />
+      <Table
+        dataSource={attributes}
+        columns={columns}
+        rowKey={(record, index) => index}
+        pagination={false}
+      />
 
       <Modal
         title="Ajouter un attribut"
-        visible={modalVisible}
+        open={modalVisible}
         onCancel={() => setModalVisible(false)}
         onOk={() => form.submit()}
         destroyOnClose

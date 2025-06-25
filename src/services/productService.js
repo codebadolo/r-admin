@@ -3,7 +3,11 @@ import api from './api'; // Instance Axios configurée avec baseURL et gestion d
 // --- Brands ---
 export const fetchBrands = () => api.get('/brands/');
 export const fetchBrand = (id) => api.get(`/brands/${id}/`);
-export const createBrand = (data) => api.post('/brands/', data);
+export const createBrand = (data) =>
+  api.post('/brands/', data, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+
 export const updateBrand = (id, data) => api.put(`/brands/${id}/`, data);
 export const deleteBrand = (id) => api.delete(`/brands/${id}/`);
 

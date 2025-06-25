@@ -2,21 +2,22 @@ import { Button, Steps, message } from 'antd';
 import { useState } from 'react';
 
 import AttributsVariantes from './steps/AttributsVariantes';
+import GestionVariantes from './steps/GestionVariantes';
 import ImagesMedias from './steps/ImagesMedias';
 import InfosGenerales from './steps/InfosGenerales';
 import PrixStock from './steps/PrixStock';
 import RevisionPublication from './steps/RevisionPublication';
 import SpecificationsTechniques from './steps/SpecificationsTechniques';
-
 const { Step } = Steps;
 
 const AjouterProduit = () => {
   const [currentStep, setCurrentStep] = useState(0);
 
-  // État global du produit (à enrichir selon besoins)
+  // Ajoute un nouvel état pour les variantes
   const [productData, setProductData] = useState({
     infosGenerales: {},
     attributsVariantes: [],
+    variantes: [], // <-- NOUVEAU
     imagesMedias: [],
     prixStock: {},
     specificationsTechniques: [],
@@ -30,6 +31,16 @@ const AjouterProduit = () => {
     {
       title: 'Attributs et variantes',
       content: <AttributsVariantes data={productData.attributsVariantes} onChange={(data) => updateData('attributsVariantes', data)} />,
+    },
+    {
+      title: 'Définir les variantes',
+      content: (
+        <GestionVariantes
+          attributs={productData.attributsVariantes}
+          data={productData.variantes}
+          onChange={(data) => updateData('variantes', data)}
+        />
+      ),
     },
     {
       title: 'Images et médias',
