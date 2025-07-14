@@ -1,8 +1,15 @@
-import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
-import { Button, Form, Input, InputNumber, Modal, Select, Space, Table, Typography, message } from 'antd';
+import { DeleteOutlined, EditOutlined, EyeOutlined, PlusOutlined } from '@ant-design/icons';
+import { Button, Card, Col, Form, Input, InputNumber, Modal, Row, Select, Space, Tag, Typography, message } from 'antd';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { createProduct, deleteProduct, fetchCategories, fetchProducts, updateProduct } from '../services/productService';
+import {
+  createProduct,
+  deleteProduct,
+  fetchCategories,
+  fetchProducts,
+  updateProduct,
+} from '../services/productService';
+
 const { Title } = Typography;
 const { Option } = Select;
 
@@ -13,19 +20,15 @@ const CataloguePage = () => {
   const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(false);
 
   // Charger produits et catégories
   const loadProducts = async () => {
-    setLoading(true);
     try {
       const res = await fetchProducts();
       setProducts(res.data);
     } catch (error) {
       message.error('Erreur lors du chargement des produits');
       console.error(error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -63,21 +66,17 @@ const CataloguePage = () => {
       const values = await form.validateFields();
 
       if (editingProduct) {
-        // Modifier produit
         await updateProduct(editingProduct.id, {
           name: values.name,
           category: values.category,
           store_price: values.price,
-          // stock doit être géré via API stock séparée (voir remarque)
         });
         message.success('Produit modifié avec succès');
       } else {
-        // Créer produit
         await createProduct({
           name: values.name,
           category: values.category,
           store_price: values.price,
-          // autres champs requis à compléter
         });
         message.success('Produit créé avec succès');
       }
@@ -109,27 +108,10 @@ const CataloguePage = () => {
     });
   };
 
-  const columns = [
-    { title: 'Nom', dataIndex: 'name', key: 'name' },
-    { title: 'Catégorie', dataIndex: ['category', 'name'], key: 'category' },
-    { title: 'Prix (€)', dataIndex: 'store_price', key: 'price', render: (val) => val.toFixed(2) },
-    { title: 'Stock', dataIndex: ['stock', 'units'], key: 'stock', render: (val) => val || 0 },
-    {
-      title: 'Actions',
-      key: 'actions',
-      render: (_, record) => (
-        <Space>
-          <Button icon={<EditOutlined />} onClick={() => showModal(record)} />
-          <Button icon={<DeleteOutlined />} danger onClick={() => handleDelete(record.id)} />
-        </Space>
-      ),
-    },
-  ];
-
   return (
     <>
       <Title level={2}>Catalogue Produits</Title>
-  <Button
+      <Button
         type="primary"
         icon={<PlusOutlined />}
         style={{ marginBottom: 16 }}
@@ -137,17 +119,82 @@ const CataloguePage = () => {
       >
         Ajouter un produit
       </Button>
-      <Table
-        columns={columns}
-        dataSource={products}
-        rowKey="id"
-        loading={loading}
-        pagination={{ pageSize: 10 }}
-      />
+      <Row gutter={[24, 24]}>
+        {products.map(product => (
+          <Col xs={24} sm={12} md={8} lg={6} key={product.id}>
+            <Card
+              hoverable
+              style={{
+                borderRadius: 16,
+                boxShadow: '0 2px 16px rgba(0,0,0,0.07)',
+                minHeight: 380,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between'
+              }}
+              cover={
+                product.image ? (
+                  <img
+                    alt={product.name}
+                    src={product.image}
+                    style={{
+                      borderTopLeftRadius: 16,
+                      borderTopRightRadius: 16,
+                      height: 180,
+                      objectFit: 'cover'
+                    }}
+                  />
+                ) : (
+                  <div style={{
+                    height: 180,
+                    background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
+                    borderTopLeftRadius: 16,
+                    borderTopRightRadius: 16,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#bbb',
+                    fontSize: 48
+                  }}>
+                    <span>{product.name[0]}</span>
+                  </div>
+                )
+              }
+              actions={[
+                <EyeOutlined
+                  key="view"
+                  onClick={() => navigate(`/products/${product.id}`)}
+                  title="Voir la fiche"
+                />,
+                <EditOutlined key="edit" onClick={() => showModal(product)} />,
+                <DeleteOutlined key="delete" onClick={() => handleDelete(product.id)} style={{ color: 'red' }} />
+              ]}
+              title={
+                <Space>
+                  <span>{product.name}</span>
+                  {product.category?.name && <Tag color="blue">{product.category.name}</Tag>}
+                </Space>
+              }
+            >
+              <div style={{ marginBottom: 8 }}>
+                <b>Prix :</b> <span style={{ color: '#52c41a' }}>{product.store_price?.toFixed(2)} €</span>
+              </div>
+              <div style={{ marginBottom: 8 }}>
+                <b>Stock :</b> <span style={{ color: product.stock?.units > 0 ? '#1890ff' : '#f5222d' }}>
+                  {product.stock?.units ?? 0}
+                </span>
+              </div>
+              <div style={{ color: '#888', fontSize: 13, marginBottom: 8 }}>
+                {product.description?.slice(0, 70) || ''}
+              </div>
+            </Card>
+          </Col>
+        ))}
+      </Row>
 
       <Modal
         title={editingProduct ? 'Modifier produit' : 'Ajouter produit'}
-        visible={modalVisible}
+        open={modalVisible}
         onOk={handleOk}
         onCancel={() => setModalVisible(false)}
         destroyOnClose
@@ -168,7 +215,6 @@ const CataloguePage = () => {
           <Form.Item name="price" label="Prix (€)" rules={[{ required: true, message: 'Veuillez saisir le prix' }]}>
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
-          {/* Le stock est géré séparément, mais vous pouvez l’ajouter ici si besoin */}
         </Form>
       </Modal>
     </>

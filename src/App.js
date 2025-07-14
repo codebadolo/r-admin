@@ -29,9 +29,9 @@ import UsersPage from './pages/UsersPage';
 import DeliveryPage from './pages/DeliveryPage';
 import OrdersPage from './pages/OrdersPage';
 import PaymentsPage from './pages/PaymentsPage';
+import ProductDetailPage from './pages/ProductDetailPage';
 import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
-
 function App() {
   return (
     <ConfigProvider locale={frFR}>
@@ -52,6 +52,8 @@ function App() {
 
                       {/* Produits */}
                       <Route path="/products/catalogue" element={<CataloguePage />} />
+                      <Route path="/products/:id" element={<ProductDetailPage />} />
+
                       <Route path="/products/brands" element={<BrandsPage />} />
                       <Route path="/products/categories" element={<CategoriesPage />} />
                       <Route path="/products/types" element={<ProductTypesPage />} />

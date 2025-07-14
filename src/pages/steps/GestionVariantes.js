@@ -1,149 +1,267 @@
-import { DeleteOutlined, PlusOutlined } from '@ant-design/icons';
-import { Button, Form, Image, Input, InputNumber, Modal, Select, Space, Table, Typography } from 'antd';
-import { useEffect, useState } from 'react';
+import { CopyOutlined, DeleteOutlined, PictureOutlined, PlusOutlined, UploadOutlined } from '@ant-design/icons';
+import { Button, Form, Image, Input, InputNumber, message, Modal, Select, Space, Table, Tooltip, Typography, Upload } from 'antd';
+import { useEffect, useRef, useState } from 'react';
 
-const { Title } = Typography;
 const { Option } = Select;
+const { Title } = Typography;
 
+// Produit cartésien pour générer toutes les combinaisons d'attributs
 function cartesianProduct(arr) {
-  return arr.reduce((a, b) =>
-    a.flatMap(d => b.map(e => [].concat(d, e)))
-  );
+  return arr.reduce((a, b) => a.flatMap(d => b.map(e => [].concat(d, e))), [[]]);
 }
 
-const GestionVariantes = ({ attributs = [], data = [], imagesMedias = [], onChange }) => {
+const GestionVariantes = ({
+  attributs = [],
+  data = [],
+  imagesMedias = [],
+  onChange,
+}) => {
+  const safeAttributs = Array.isArray(attributs) ? attributs : [];
   const [variants, setVariants] = useState(data);
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [form] = Form.useForm();
+  // Liste dynamique des images/médias (locales + props)
+  const [localImages, setLocalImages] = useState([]);
+  const uploadInputRef = useRef();
 
+  // Fusion des images passées en props et uploadées localement
+  const allImages = [...imagesMedias, ...localImages];
+
+  // Génère toutes les combinaisons d'attributs à chaque changement
   useEffect(() => {
-    // Génération automatique des variantes à partir des attributs
-    const attrMap = {};
-    attributs.forEach(({ attribute, value }) => {
-      if (!attrMap[attribute]) attrMap[attribute] = [];
-      if (!attrMap[attribute].includes(value)) attrMap[attribute].push(value);
-    });
-    const attrArrays = Object.entries(attrMap).map(([key, values]) =>
-      values.map(val => ({ [key]: val }))
+    const attrArrays = safeAttributs.map(attr =>
+      Array.isArray(attr.values) ? attr.values.map(val => ({ [attr.attribute]: val })) : []
     );
     const combos = attrArrays.length ? cartesianProduct(attrArrays) : [];
     const rows = combos.map(comboArr => {
       const combo = Object.assign({}, ...comboArr);
       const key = Object.values(combo).join('-');
       const existing = data.find(v => v.key === key);
-      return existing || {
-        key,
-        attributes: combo,
-        sku: '',
-        upc: '',
-        retail_price: 0,
-        store_price: 0,
-        stock_units: 0,
-        is_digital: false,
-        weight: 0,
-        mediaIds: [], // <--- Ajout pour lier les images
-      };
+      return (
+        existing || {
+          key,
+          attributes: combo,
+          sku: '',
+          retail_price: 0,
+          stock_units: 0,
+          mediaIds: [],
+        }
+      );
     });
     setVariants(rows);
-    onChange(rows);
+    onChange && onChange(rows);
     // eslint-disable-next-line
-  }, [attributs]);
+  }, [JSON.stringify(safeAttributs)]);
 
-  // Action : supprimer une variante
-  const handleDelete = (record) => {
-    const newVariants = variants.filter(v => v.key !== record.key);
-    setVariants(newVariants);
-    onChange(newVariants);
-  };
-
-  // Action : modifier un champ
+  // Édition inline
   const handleChange = (value, record, field) => {
     const newVariants = variants.map(v =>
       v.key === record.key ? { ...v, [field]: value } : v
     );
     setVariants(newVariants);
-    onChange(newVariants);
+    onChange && onChange(newVariants);
   };
 
-  // Action : ajouter une variante manuelle
+  // Suppression d'une variante
+  const handleDelete = (record) => {
+    Modal.confirm({
+      title: 'Supprimer cette variante ?',
+      content: (
+        <span>
+          Confirmer la suppression de la variante :
+          <br />
+          {Object.entries(record.attributes).map(
+            ([k, v]) => (
+              <span key={k}><b>{k}:</b> {v} </span>
+            )
+          )}
+        </span>
+      ),
+      okText: 'Supprimer',
+      okType: 'danger',
+      cancelText: 'Annuler',
+      onOk: () => {
+        const newVariants = variants.filter(v => v.key !== record.key);
+        setVariants(newVariants);
+        onChange && onChange(newVariants);
+      },
+    });
+  };
+
+  // Duplication rapide
+  const handleDuplicate = (record) => {
+    const copy = { ...record, key: record.key + '-copy' + Date.now() };
+    setVariants([...variants, copy]);
+    onChange && onChange([...variants, copy]);
+    message.success('Variante dupliquée');
+  };
+
+  // Ajout manuel d'une variante
   const handleAddVariant = (values) => {
     const key = Object.values(values.attributes).join('-') + '-' + Date.now();
-    const newVariant = {
-      ...values,
-      key,
-      mediaIds: [],
-    };
-    const newVariants = [...variants, newVariant];
-    setVariants(newVariants);
-    onChange(newVariants);
+    const newVariant = { ...values, key, mediaIds: [] };
+    setVariants([...variants, newVariant]);
+    onChange && onChange([...variants, newVariant]);
     setAddModalOpen(false);
     form.resetFields();
   };
 
+  // Ajout dynamique d'image (upload local)
+  const handleImageUpload = ({ file }) => {
+    // Crée un objet image local (pas encore envoyé au backend)
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const newImg = {
+        uid: 'local-' + Date.now(),
+        name: file.name,
+        url: e.target.result,
+      };
+      setLocalImages((imgs) => [...imgs, newImg]);
+      message.success('Image ajoutée !');
+    };
+    reader.readAsDataURL(file);
+    // Empêche l'upload automatique (on gère tout côté client ici)
+    return false;
+  };
+
+  // Affichage des images associées à la variante
+  const renderImages = (mediaIds) => (
+    <Space>
+      {mediaIds.map(id => {
+        const img = allImages.find(img => img.uid === id || img.id === id);
+        return img ? (
+          <Tooltip key={id} title={img.name || img.url}>
+            <Image src={img.url || img.thumbUrl} width={32} height={32} preview={false} style={{ borderRadius: 4 }} />
+          </Tooltip>
+        ) : null;
+      })}
+    </Space>
+  );
+
+  // Colonnes du tableau de variantes
   const columns = [
     {
       title: 'Attributs',
       dataIndex: 'attributes',
-      key: 'attributes',
       render: (attrs) =>
-        Object.entries(attrs).map(([k, v]) => (
-          <span key={k}>
-            <b>{k}:</b> {v}{' '}
-          </span>
-        )),
+        <Space>
+          {Object.entries(attrs).map(([k, v]) => (
+            <span key={k}><b>{k}:</b> {v}</span>
+          ))}
+        </Space>
     },
-    { title: 'SKU', dataIndex: 'sku', render: (_, r) => <Input value={r.sku} onChange={e => handleChange(e.target.value, r, 'sku')} /> },
-    { title: 'Prix détail', dataIndex: 'retail_price', render: (_, r) => <InputNumber min={0} value={r.retail_price} onChange={v => handleChange(v, r, 'retail_price')} /> },
-    { title: 'Stock', dataIndex: 'stock_units', render: (_, r) => <InputNumber min={0} value={r.stock_units} onChange={v => handleChange(v, r, 'stock_units')} /> },
-    // Colonne pour lier les images
     {
-      title: 'Photos',
+      title: 'SKU',
+      dataIndex: 'sku',
+      render: (_, r) => (
+        <Input
+          value={r.sku}
+          onChange={e => handleChange(e.target.value, r, 'sku')}
+          placeholder="SKU unique"
+          maxLength={32}
+        />
+      ),
+    },
+    {
+      title: 'Prix',
+      dataIndex: 'retail_price',
+      render: (_, r) => (
+        <InputNumber
+          min={0}
+          value={r.retail_price}
+          onChange={v => handleChange(v, r, 'retail_price')}
+          style={{ width: 90 }}
+          addonAfter="€"
+        />
+      ),
+    },
+    {
+      title: 'Stock',
+      dataIndex: 'stock_units',
+      render: (_, r) => (
+        <InputNumber
+          min={0}
+          value={r.stock_units}
+          onChange={v => handleChange(v, r, 'stock_units')}
+          style={{ width: 70 }}
+        />
+      ),
+    },
+    {
+      title: 'Images',
       dataIndex: 'mediaIds',
       render: (mediaIds, record) => (
-        <Select
-          mode="multiple"
-          allowClear
-          style={{ minWidth: 120 }}
-          placeholder="Associer des images"
-          value={mediaIds}
-          onChange={val => handleChange(val, record, 'mediaIds')}
-          optionLabelProp="label"
-        >
-          {imagesMedias.map(img => (
-            <Option key={img.uid || img.id} value={img.uid || img.id} label={img.name || img.url}>
-              <Space>
-                <Image src={img.url || img.thumbUrl} width={32} height={32} preview={false} />
-                {img.name || img.url}
-              </Space>
-            </Option>
-          ))}
-        </Select>
-      )
+        <Space>
+          <Select
+            mode="multiple"
+            allowClear
+            style={{ minWidth: 90, maxWidth: 180 }}
+            placeholder="Associer"
+            value={mediaIds}
+            onChange={val => handleChange(val, record, 'mediaIds')}
+            optionLabelProp="label"
+            maxTagCount={2}
+          >
+            {allImages.map(img => (
+              <Option key={img.uid || img.id} value={img.uid || img.id} label={img.name || img.url}>
+                <Space>
+                  <PictureOutlined /> {img.name || img.url}
+                </Space>
+              </Option>
+            ))}
+          </Select>
+          {mediaIds.length > 0 && renderImages(mediaIds)}
+        </Space>
+      ),
     },
     {
       title: 'Actions',
       key: 'actions',
       render: (_, record) => (
-        <Button danger icon={<DeleteOutlined />} onClick={() => handleDelete(record)} />
+        <Space>
+          <Tooltip title="Dupliquer">
+            <Button icon={<CopyOutlined />} onClick={() => handleDuplicate(record)} />
+          </Tooltip>
+          <Tooltip title="Supprimer">
+            <Button danger icon={<DeleteOutlined />} onClick={() => handleDelete(record)} />
+          </Tooltip>
+        </Space>
       ),
     },
   ];
 
-  // Génère dynamiquement les champs d'attributs pour le modal d'ajout
-  const attributeFields = Array.from(new Set(attributs.map(a => a.attribute)));
+  // Pour l'ajout manuel
+  const attributeFields = safeAttributs.map(a => a.attribute);
 
   return (
     <>
-      <Title level={4}>Définir les variantes (SKU)</Title>
-      <Button
-        type="dashed"
-        icon={<PlusOutlined />}
-        style={{ marginBottom: 16 }}
-        onClick={() => setAddModalOpen(true)}
-      >
-        Ajouter une variante manuellement
-      </Button>
-      <Table columns={columns} dataSource={variants} pagination={false} rowKey="key" />
+      <Title level={4} style={{ marginBottom: 16 }}>Définir les variantes (SKU)</Title>
+      <Space style={{ marginBottom: 16 }}>
+        <Button
+          type="dashed"
+          icon={<PlusOutlined />}
+          onClick={() => setAddModalOpen(true)}
+        >
+          Ajouter une variante manuellement
+        </Button>
+        <Upload
+          accept="image/*"
+          showUploadList={false}
+          beforeUpload={handleImageUpload}
+        >
+          <Button icon={<UploadOutlined />}>Ajouter une image</Button>
+        </Upload>
+      </Space>
+      <Table
+        columns={columns}
+        dataSource={variants}
+        pagination={false}
+        rowKey="key"
+        size="middle"
+        bordered
+        style={{ background: '#fff' }}
+        scroll={{ x: true }}
+      />
 
       <Modal
         open={addModalOpen}
@@ -156,12 +274,7 @@ const GestionVariantes = ({ attributs = [], data = [], imagesMedias = [], onChan
           <Form.Item label="Attributs" required>
             <Space direction="vertical" style={{ width: '100%' }}>
               {attributeFields.map(attr => (
-                <Form.Item
-                  key={attr}
-                  name={['attributes', attr]}
-                  label={attr}
-                  rules={[{ required: true, message: `Veuillez saisir une valeur pour ${attr}` }]}
-                >
+                <Form.Item key={attr} name={['attributes', attr]} label={attr} rules={[{ required: true }]}>
                   <Input />
                 </Form.Item>
               ))}
@@ -170,11 +283,28 @@ const GestionVariantes = ({ attributs = [], data = [], imagesMedias = [], onChan
           <Form.Item name="sku" label="SKU">
             <Input />
           </Form.Item>
-          <Form.Item name="retail_price" label="Prix détail">
+          <Form.Item name="retail_price" label="Prix">
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
           <Form.Item name="stock_units" label="Stock">
             <InputNumber min={0} style={{ width: '100%' }} />
+          </Form.Item>
+          <Form.Item name="mediaIds" label="Images associées">
+            <Select
+              mode="multiple"
+              allowClear
+              placeholder="Associer des images"
+              optionLabelProp="label"
+              maxTagCount={2}
+            >
+              {allImages.map(img => (
+                <Option key={img.uid || img.id} value={img.uid || img.id} label={img.name || img.url}>
+                  <Space>
+                    <PictureOutlined /> {img.name || img.url}
+                  </Space>
+                </Option>
+              ))}
+            </Select>
           </Form.Item>
         </Form>
       </Modal>

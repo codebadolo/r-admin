@@ -4,10 +4,8 @@ import { useEffect, useState } from 'react';
 import {
   createBrand,
   createCategory,
-  createProductType,
   fetchBrands,
   fetchCategories,
-  fetchProductTypes,
 } from '../../services/productService';
 
 const { Option } = Select;
@@ -35,7 +33,7 @@ const InfosGenerales = ({ data, onChange }) => {
   const [categories, setCategories] = useState([]);
   const [categoryTree, setCategoryTree] = useState([]);
   const [brands, setBrands] = useState([]);
-  const [productTypes, setProductTypes] = useState([]);
+  
 
   // États pour afficher les modals
   const [modal, setModal] = useState({ category: false, brand: false, type: false });
@@ -43,7 +41,7 @@ const InfosGenerales = ({ data, onChange }) => {
   // Formulaires création
   const [createCategoryForm] = Form.useForm();
   const [createBrandForm] = Form.useForm();
-  const [createProductTypeForm] = Form.useForm();
+
 
   useEffect(() => {
     loadOptions();
@@ -59,7 +57,7 @@ const InfosGenerales = ({ data, onChange }) => {
       setCategories(catRes.data);
       setCategoryTree(buildCategoryTree(catRes.data));
       setBrands((await fetchBrands()).data);
-      setProductTypes((await fetchProductTypes()).data);
+
     } catch (error) {
       message.error('Erreur chargement des options');
     }
@@ -105,20 +103,7 @@ const InfosGenerales = ({ data, onChange }) => {
     }
   };
 
-  // Création Type de Produit (modal)
-  const onCreateProductType = async (values) => {
-    try {
-      const res = await createProductType(values);
-      setProductTypes(prev => [...prev, res.data]);
-      form.setFieldsValue({ productType: res.data.id });
-      onChange({ ...form.getFieldsValue(), productType: res.data.id });
-      createProductTypeForm.resetFields();
-      setModal(m => ({ ...m, type: false }));
-      message.success('Type de produit créé avec succès');
-    } catch (error) {
-      message.error('Erreur création type de produit');
-    }
-  };
+
 
   return (
     <>
@@ -174,25 +159,7 @@ const InfosGenerales = ({ data, onChange }) => {
           </Button>
         </Form.Item>
 
-        {/* Type de produit */}
-        <Form.Item name="productType" label="Type de produit" rules={[{ required: true }]}>
-          <Select
-            placeholder="Sélectionnez un type de produit"
-            onChange={val => handleSelectChange('productType', val)}
-            allowClear
-          >
-            {productTypes.map(type => (
-              <Option key={type.id} value={type.id}>{type.name}</Option>
-            ))}
-          </Select>
-          <Button
-            type="link"
-            icon={<PlusOutlined />}
-            onClick={() => setModal(m => ({ ...m, type: true }))}
-          >
-            Ajouter un type
-          </Button>
-        </Form.Item>
+  
       </Form>
 
       {/* Modal Catégorie */}
@@ -259,29 +226,7 @@ const InfosGenerales = ({ data, onChange }) => {
         </Form>
       </Modal>
 
-      {/* Modal Type de produit */}
-      <Modal
-        open={modal.type}
-        title="Créer un type de produit"
-        onCancel={() => setModal(m => ({ ...m, type: false }))}
-        footer={null}
-        destroyOnClose
-      >
-        <Form
-          form={createProductTypeForm}
-          layout="vertical"
-          onFinish={onCreateProductType}
-        >
-          <Form.Item name="name" label="Nom" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item>
-            <Button type="primary" htmlType="submit" block>
-              Créer le type
-            </Button>
-          </Form.Item>
-        </Form>
-      </Modal>
+ 
     </>
   );
 };
