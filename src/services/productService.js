@@ -45,6 +45,10 @@ export const fetchProductTypeAttribute = (id) => api.get(`/product-type-attribut
 export const createProductTypeAttribute = (data) => api.post('/product-type-attributes/', data);
 export const updateProductTypeAttribute = (id, data) => api.put(`/product-type-attributes/${id}/`, data);
 export const deleteProductTypeAttribute = (id) => api.delete(`/product-type-attributes/${id}/`);
+// Pour récupérer les attributs d’un type produit spécifique
+export const fetchProductTypeAttributesByProductType = (productTypeId) =>
+  api.get(`/product-types/${productTypeId}/attributes/`);
+
 
 // --- Products ---
 export const fetchProducts = () => api.get('/products/');
