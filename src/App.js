@@ -8,7 +8,7 @@ import MainLayout from './layouts/MainLayout';
 import AjouterProduit from './pages/AjouterProduit'; // importez votre page
 import DashboardPage from './pages/DashboardPage';
 import LoginPage from './pages/LoginPage';
-
+import UserDetail from './pages/UserDetail';
 // Import des autres pages protégées
 import AttributesPage from './pages/AttributesPage';
 import BrandsPage from './pages/BrandsPage';
@@ -68,6 +68,7 @@ function App() {
 
                       {/* Utilisateurs & rôles */}
                       <Route path="/users" element={<UsersPage />} />
+                      <Route path="/users/:id" element={<UserDetail />} />
                       <Route path="/roles" element={<RolesPage />} />
                       <Route path="/permissions" element={<PermissionsPage />} />
 

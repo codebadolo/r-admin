@@ -1,65 +1,91 @@
-import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
-import { Button, Form, Input, List, Modal, Typography } from 'antd';
-import { useState } from 'react';
+import { PlusOutlined } from "@ant-design/icons";
+import {
+  Button,
+  Layout,
+  message,
+  Spin
+} from "antd";
+import { useEffect, useState } from "react";
+import BrandCardList from "../components/BrandCardList";
+import BrandModalForm from "../components/BrandModalForm";
+import * as produitService from "../services/productService";
 
-const { Title } = Typography;
+const { Content } = Layout;
 
-const BrandsPage = () => {
-  const [brands, setBrands] = useState([{ id: 1, name: 'Dell' }, { id: 2, name: 'HP' }]);
+export default function BrandsPage() {
+  const [brands, setBrands] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingBrand, setEditingBrand] = useState(null);
-  const [form] = Form.useForm();
 
-  const showModal = (brand = null) => {
+  const fetchBrands = async () => {
+    setLoading(true);
+    try {
+      const res = await produitService.fetchBrands();
+      setBrands(res.data);
+    } catch (err) {
+      message.error("Erreur lors du chargement des marques.");
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchBrands();
+  }, []);
+
+  const openModal = (brand = null) => {
     setEditingBrand(brand);
-    form.resetFields();
-    if (brand) form.setFieldsValue(brand);
     setModalVisible(true);
   };
+  const closeModal = () => setModalVisible(false);
 
-  const handleOk = () => {
-    form.validateFields().then(values => {
+  const handleSave = async (values) => {
+    try {
       if (editingBrand) {
-        setBrands(brands.map(b => (b.id === editingBrand.id ? { ...b, ...values } : b)));
+        await produitService.updateBrand(editingBrand.id, values);
+        message.success("Marque mise à jour !");
       } else {
-        setBrands([...brands, { id: Date.now(), ...values }]);
+        await produitService.createBrand(values);
+        message.success("Marque ajoutée !");
       }
-      setModalVisible(false);
-      // TODO: API save
-    });
+      closeModal();
+      fetchBrands();
+    } catch (err) {
+      message.error("Erreur lors de la sauvegarde.");
+    }
   };
 
-  const handleDelete = id => setBrands(brands.filter(b => b.id !== id));
+  const handleDelete = async (brand) => {
+    try {
+      await produitService.deleteBrand(brand.id);
+      message.success("Marque supprimée !");
+      fetchBrands();
+    } catch {
+      message.error("Erreur lors de la suppression.");
+    }
+  };
 
   return (
-    <>
-      <Title level={2}>Marques</Title>
-      <Button type="primary" icon={<PlusOutlined />} onClick={() => showModal()} style={{ marginBottom: 16 }}>
-        Ajouter une marque
-      </Button>
-      <List
-        bordered
-        dataSource={brands}
-        renderItem={item => (
-          <List.Item
-            actions={[
-              <Button icon={<EditOutlined />} onClick={() => showModal(item)} />,
-              <Button icon={<DeleteOutlined />} danger onClick={() => handleDelete(item.id)} />,
-            ]}
-          >
-            {item.name}
-          </List.Item>
+    <Layout style={{ background: "#f6f8fa" }}>
+      <Content style={{ maxWidth: 1200, margin: "auto", padding: 32, minHeight: "100vh" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 24, alignItems: "center" }}>
+          <h2 style={{ margin: 0 }}>Marques</h2>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal(null)}>
+            Ajouter une marque
+          </Button>
+        </div>
+        {loading ? (
+          <Spin size="large" />
+        ) : (
+          <BrandCardList brands={brands} onEdit={openModal} onDelete={handleDelete} />
         )}
-      />
-      <Modal title={editingBrand ? 'Modifier marque' : 'Ajouter marque'} visible={modalVisible} onOk={handleOk} onCancel={() => setModalVisible(false)} destroyOnClose>
-        <Form form={form} layout="vertical">
-          <Form.Item name="name" label="Nom" rules={[{ required: true, message: 'Veuillez saisir le nom' }]}>
-            <Input />
-          </Form.Item>
-        </Form>
-      </Modal>
-    </>
+        <BrandModalForm
+          visible={modalVisible}
+          onCancel={closeModal}
+          onSubmit={handleSave}
+          editingBrand={editingBrand}
+        />
+      </Content>
+    </Layout>
   );
-};
-
-export default BrandsPage;
+}
