@@ -105,3 +105,5 @@ export const fetchProduitSpecification = (id) => api.get(`/produit-specification
 export const createProduitSpecification = (data) => api.post('/produit-specifications/', data);
 export const updateProduitSpecification = (id, data) => api.put(`/produit-specifications/${id}/`, data);
 export const deleteProduitSpecification = (id) => api.delete(`/produit-specifications/${id}/`);
+export const fetchCleSpecificationsBySection = (sectionId) =>
+  api.get(`/cle-specifications/?section=${sectionId}`);
