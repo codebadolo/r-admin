@@ -1,98 +1,250 @@
-import { Card, Col, Collapse, Descriptions, Image, List, Row, Tag } from "antd";
+import { ArrowLeftOutlined, EditOutlined } from "@ant-design/icons";
+import {
+  Button,
+  Card,
+  Col,
+  Descriptions,
+  Divider,
+  Image,
+  Row,
+  Space,
+  Spin,
+  Table,
+  Tag,
+  Typography,
+} from "antd";
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom"; // pour récupérer l'id du produit en URL
-import { fetchProduct } from "../services/productService"; // fonction à créer pour récupérer les détails produit
+import { useNavigate, useParams } from "react-router-dom";
+import { fetchProduct } from "../services/productService";
 
-const { Panel } = Collapse;
+const { Title, Text } = Typography;
 
 export default function ProductDetailPage() {
-  const { id } = useParams(); // id du produit dans l’URL
+  const { id } = useParams();
+  const navigate = useNavigate();
+
   const [product, setProduct] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadProduct() {
-      try {
-        const res = await fetchProduct(id);
-        setProduct(res.data);
-      } catch (e) {
-        console.error("Erreur chargement produit", e);
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadProduct();
+    setLoading(true);
+    fetchProduct(id)
+      .then(setProduct)
+      .finally(() => setLoading(false));
   }, [id]);
 
-  if (loading) return <div>Chargement...</div>;
-  if (!product) return <div>Produit non trouvé</div>;
+  if (loading)
+    return (
+      <Spin tip="Chargement..." style={{ display: "block", margin: "60px auto" }} />
+    );
+
+  if (!product)
+    return (
+      <Card>
+        <Text type="danger">Produit introuvable.</Text>
+        <Button style={{ marginTop: 16 }} onClick={() => navigate(-1)}>
+          <ArrowLeftOutlined /> Retour
+        </Button>
+      </Card>
+    );
+
+  // Calcul des stocks totaux et vendus
+  const totalStock = product.stocks?.reduce((sum, s) => sum + (s.units || 0), 0) || 0;
+  const soldStock = product.stocks?.reduce((sum, s) => sum + (s.units_sold || 0), 0) || 0;
+
+  // Image principale
+  const mainImage =
+    product.images?.find((img) => img.is_feature) || product.images?.[0] || null;
+
+  // Colonnes spécifications techniques
+  const attributeColumns = [
+    {
+      title: "Nom",
+      key: "attributeName",
+      render: (_, record) => record.option?.attribute?.name || "-",
+    },
+    {
+      title: "Valeur",
+      key: "attributeValue",
+      render: (_, record) => record.option?.value || "-",
+    },
+  ];
+
+  // Colonnes stock avec info entrepôt
+ const stockColumns = [
+  {
+    title: "Entrepôt",
+    key: "warehouseName",
+    render: (_, record) => record.warehouse?.name || "-",
+  },
+  {
+    title: "Localisation",
+    key: "warehouseLocation",
+    render: (_, record) => record.warehouse?.location || "-",
+  },
+  {
+    title: "Disponible",
+    dataIndex: "units",
+    key: "units",
+    render: (units) => (
+      <Tag color={units > 5 ? "green" : "red"}>{units ?? "-"}</Tag>
+    ),
+  },
+  {
+    title: "Déjà vendu",
+    dataIndex: "units_sold",
+    key: "unitsSold",
+    render: (units_sold) => units_sold ?? "-",
+  },
+];
+
+
+  // Galerie images
+  const imageGallery = (product.images || []).map((img) => ({
+    src: img.image,
+    alt: img.alt_text || "",
+    key: img.id,
+  }));
 
   return (
-    <Card title={product.name} style={{ maxWidth: 900, margin: "auto", marginTop: 20 }}>
-      <Row gutter={24}>
-        <Col span={10}>
-          {product.inventories && product.inventories.length > 0 ? (
-            <Image
-              src={product.inventories[0].media.length > 0 ? product.inventories[0].media[0].img_url : "/placeholder.png"}
-              alt={product.name}
-              style={{ width: "100%", objectFit: "contain" }}
+    <Card
+      title={
+        <Space align="center" wrap>
+          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)} />
+          <span style={{ fontWeight: 500 }}>{product.name}</span>
+          <Tag color={product.is_active ? "green" : "red"}>
+            {product.is_active ? "Actif" : "Inactif"}
+          </Tag>
+          <Button
+            type="primary"
+            icon={<EditOutlined />}
+            onClick={() => navigate(`/products/edit/${product.id}`)}
+          >
+            Modifier
+          </Button>
+        </Space>
+      }
+    >
+      <Row gutter={32}>
+        <Col xs={24} md={8}>
+          <Card
+            bordered
+            cover={
+              mainImage ? (
+                <Image
+                  src={mainImage.image}
+                  alt={mainImage.alt_text || ""}
+                  style={{
+                    maxHeight: 320,
+                    objectFit: "contain",
+                    borderRadius: 8,
+                    background: "#fafafa",
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    height: 320,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    background: "#fcfcfc",
+                  }}
+                >
+                  <Text type="secondary">Aucune image</Text>
+                </div>
+              )
+            }
+          >
+            <Title level={4}>{product.name}</Title>
+            <Text type="secondary">{product.category?.name || "-"}</Text>
+            <br />
+            <Text strong>{Number(product.price).toFixed(2)} €</Text>
+            <br />
+            <Tag color="blue">{product.brand?.name || "-"}</Tag>
+            <br />
+            <Text>
+              Dépôt principal : {product.stocks?.[0]?.warehouse?.name || "-"}
+            </Text>
+            <Divider />
+            <Descriptions size="small" column={1}>
+              <Descriptions.Item label="Type">{product.product_type?.name || "-"}</Descriptions.Item>
+              <Descriptions.Item label="Slug">{product.slug || "-"}</Descriptions.Item>
+              <Descriptions.Item label="Créé le">
+                {new Date(product.created_at).toLocaleString()}
+              </Descriptions.Item>
+              <Descriptions.Item label="Modifié le">
+                {new Date(product.updated_at).toLocaleString()}
+              </Descriptions.Item>
+            </Descriptions>
+          </Card>
+        </Col>
+
+        <Col xs={24} md={16}>
+          <Title level={5}>Description</Title>
+          <Text>
+            {product.description ? (
+              product.description
+            ) : (
+              <Text type="secondary" italic>(Aucune description)</Text>
+            )}
+          </Text>
+          <Divider />
+          <Title level={5}>Spécifications techniques</Title>
+          {Array.isArray(product.attribute_values) && product.attribute_values.length > 0 ? (
+            <Table
+              columns={attributeColumns}
+              dataSource={product.attribute_values}
+              rowKey="id"
+              size="small"
+              pagination={false}
             />
           ) : (
-            <div style={{ width: "100%", height: 300, backgroundColor: "#eee", textAlign: "center", lineHeight: "300px" }}>
-              Aucune image disponible
-            </div>
+            <Text type="secondary" italic>Aucun attribut</Text>
           )}
-        </Col>
-        <Col span={14}>
-          <Descriptions column={1} bordered>
-            <Descriptions.Item label="Marque">{product.brand?.name}</Descriptions.Item>
-            <Descriptions.Item label="Catégorie">{product.category?.name}</Descriptions.Item>
-            <Descriptions.Item label="Type">{product.product_type?.name}</Descriptions.Item>
-            <Descriptions.Item label="Description">{product.description}</Descriptions.Item>
-            <Descriptions.Item label="Actif">{product.is_active ? "Oui" : "Non"}</Descriptions.Item>
-          </Descriptions>
+
+       <Divider />
+<Title level={5}>Stock</Title>
+<Space size="large" wrap style={{ marginBottom: 12 }}>
+  <span>
+    <b>Disponible en total :</b>{" "}
+    <Tag color={totalStock > 5 ? "green" : "red"}>
+      {totalStock ?? "-"}
+    </Tag>
+  </span>
+  <span>
+    <b>Unités déjà vendues :</b>{" "}
+    <Tag color="blue">{soldStock ?? "-"}</Tag>
+  </span>
+</Space>
+<Table
+  columns={stockColumns}
+  dataSource={product.stocks || []}
+  rowKey="id"
+  size="small"
+  style={{ marginTop: 16 }}
+  pagination={false}
+/>
+<Divider />
+
+          <Title level={5}>Galerie d'images</Title>
+          {imageGallery.length === 0 ? (
+            <Text type="secondary">Aucune image disponible</Text>
+          ) : (
+            <Space size={[12, 12]} wrap>
+              {imageGallery.map((img) => (
+                <Image
+                  key={img.key}
+                  src={img.src}
+                  alt={img.alt}
+                  width={96}
+                  style={{ borderRadius: 8 }}
+                />
+              ))}
+            </Space>
+          )}
         </Col>
       </Row>
-
-      <Card type="inner" title="Variantes disponibles" style={{ marginTop: 30 }}>
-        <List
-          itemLayout="vertical"
-          dataSource={product.inventories}
-          renderItem={variant => (
-            <List.Item key={variant.id}>
-              <Row justify="space-between" align="middle">
-                <Col>
-                  <strong>SKU:</strong> {variant.sku}
-                </Col>
-                <Col>
-                  <strong>Prix:</strong> {variant.store_price} €
-                </Col>
-                <Col>
-                  <strong>Attributs:</strong>{" "}
-                  {variant.attributes.map(attr => (
-                    <Tag key={attr.id}>{attr.product_attribute_value.value}</Tag>
-                  ))}
-                </Col>
-              </Row>
-            </List.Item>
-          )}
-        />
-      </Card>
-
-      <Collapse style={{ marginTop: 30 }} accordion>
-        {(product.specifications_sections || []).map(section => (
-          <Panel header={section.name} key={section.id}>
-            <List
-              dataSource={product.specifications.filter(spec => spec.cle_specification.section === section.id)}
-              renderItem={spec => (
-                <List.Item key={spec.id}>
-                  <b>{spec.cle_specification.name}</b>: {spec.value}
-                </List.Item>
-              )}
-            />
-          </Panel>
-        ))}
-      </Collapse>
     </Card>
   );
 }

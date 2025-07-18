@@ -1,362 +1,469 @@
-import { PlusOutlined } from "@ant-design/icons";
+import { PlusOutlined, UploadOutlined } from "@ant-design/icons";
 import {
   Button,
   Card,
   Col,
-  Collapse,
   Form,
   Input,
   InputNumber,
+  message,
+  Modal,
+  Radio,
   Row,
   Select,
-  Switch,
-  message
+  Spin,
+  Typography,
+  Upload,
 } from "antd";
+
+
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   createProduct,
+  createProductAttributeOption,
+  createProductAttributeValue,
+  createProductImage,
+  createStock,
   fetchBrands,
   fetchCategories,
-  fetchCleSpecifications,
-  fetchProductTypeAttributesByProductType,
+  fetchProductAttributeOptions,
+  fetchProductAttributes,
   fetchProductTypes,
-  fetchSectionSpecifications
+  fetchWarehouses,
 } from "../services/productService";
 
 const { Option } = Select;
-const { Panel } = Collapse;
+const { TextArea } = Input;
+const { Text } = Typography;
 
 export default function AjouterProduit() {
   const [form] = Form.useForm();
-  const [brands, setBrands] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [productTypes, setProductTypes] = useState([]);
-  const [typeAttributes, setTypeAttributes] = useState([]);
-  const [sections, setSections] = useState([]);
-  const [cleSpecifications, setCleSpecifications] = useState([]);
+  const [brands, setBrands] = useState([]);
+  const [types, setTypes] = useState([]);
+  const [allAttributes, setAllAttributes] = useState([]);
+  const [allOptions, setAllOptions] = useState([]);
+  const [showAttributes, setShowAttributes] = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [imageFileList, setImageFileList] = useState([]);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [currentAttrForNewOption, setCurrentAttrForNewOption] = useState(null);
+  const [newOptionValue, setNewOptionValue] = useState("");
+  const navigate = useNavigate();
 
   useEffect(() => {
-    async function loadData() {
+    async function fetchData() {
+      setLoading(true);
       try {
-        const [
-          brandsData,
-          categoriesData,
-          typesData,
-          sectionsData,
-          cleSpecsData,
-        ] = await Promise.all([
-          fetchBrands(),
+        const [cat, brd, typ, wh, attrs, opts] = await Promise.all([
           fetchCategories(),
+          fetchBrands(),
           fetchProductTypes(),
-          fetchSectionSpecifications(),
-          fetchCleSpecifications(),
+          fetchWarehouses(),
+          fetchProductAttributes(),
+          fetchProductAttributeOptions(),
         ]);
-        setBrands(brandsData.data);
-        setCategories(categoriesData.data.filter((c) => c.is_active));
-        setProductTypes(typesData.data);
-        setSections(sectionsData.data);
-        setCleSpecifications(cleSpecsData.data);
+        setCategories(cat);
+        setBrands(brd);
+        setTypes(typ);
+        setWarehouses(wh);
+        setAllAttributes(attrs);
+        setAllOptions(opts);
       } catch {
-        message.error("Erreur lors du chargement des données");
+        message.error("Erreur lors du chargement des données.");
+      } finally {
+        setLoading(false);
       }
     }
-    loadData();
+    fetchData();
   }, []);
 
-  // Charger les attributs dynamiques selon le type choisi
-  const onTypeChange = async (value) => {
-    if (!value) {
-      setTypeAttributes([]);
-      form.setFieldsValue({ attributes: {} });
+  const handleTypeChange = (typeId) => {
+    form.setFieldsValue({ attributeValues: {} }); 
+
+    if (!typeId) {
+      setShowAttributes([]);
       return;
     }
-    try {
-      const res = await fetchProductTypeAttributesByProductType(value);
-      setTypeAttributes(res.data);
-      form.setFieldsValue({ attributes: {} });
-    } catch {
-      message.error("Erreur chargement des attributs");
-    }
+    const filteredAttrs = allAttributes.filter(
+      (attr) =>
+        attr.product_type === typeId ||
+        attr.product_type?.id === typeId
+    );
+    setShowAttributes(filteredAttrs);
   };
 
-  // Filtrer les clés de spécifications par section
-  const filteredCleSpecs = (sectionId) =>
-    cleSpecifications.filter(
-      (cle) => cle.section === sectionId || (cle.section && cle.section.id === sectionId)
+  const getOptionsForAttribute = (attrId) =>
+    allOptions.filter(
+      (opt) => opt.attribute === attrId || opt.attribute?.id === attrId
     );
 
-  // Soumission - formater selon serializer backend (sans product ni product_inventory)
-  const onFinish = async (values) => {
+  const openNewOptionModal = (attr) => {
+    setCurrentAttrForNewOption(attr);
+    setNewOptionValue("");
+    setModalVisible(true);
+  };
+
+  const handleAddNewOption = async () => {
+    if (!newOptionValue.trim()) {
+      message.warning("Merci d'indiquer une valeur.");
+      return;
+    }
+    setSubmitting(true);
     try {
-      const inventories = (values.inventories || []).map((inv) => ({
-        sku: inv.sku,
-        upc: inv.upc,
-        product_type: inv.product_type,
-        brand: inv.brand,
-        attributes: (inv.attributes || []).map((a) => ({
-          product_attribute_value: a.product_attribute_value,
-        })),
-        is_active: inv.is_active,
-        is_default: inv.is_default,
-        retail_price: inv.retail_price,
-        store_price: inv.store_price,
-        is_digital: inv.is_digital || false,
-        weight: inv.weight,
-        stock: inv.stock ? { units: inv.stock.units, units_sold: inv.stock.units_sold || 0 } : undefined,
-      }));
+      await createProductAttributeOption({
+        attribute: currentAttrForNewOption.id,
+        value: newOptionValue.trim(),
+      });
+      message.success("Nouvelle valeur ajoutée !");
+      const updatedOptions = await fetchProductAttributeOptions();
+      setAllOptions(updatedOptions);
 
-      const specifications = (values.specifications || []).map((spec) => ({
-        cle_specification: spec.cle_specification,
-        value: spec.value,
-      }));
+      const newOption = updatedOptions.find(
+        (o) =>
+          (o.attribute === currentAttrForNewOption.id ||
+            o.attribute?.id === currentAttrForNewOption.id) &&
+          o.value.toLowerCase() === newOptionValue.trim().toLowerCase()
+      );
+      if (newOption) {
+        const currentAttributes = form.getFieldValue("attributeValues") || {};
+        const updatedAttributes = {
+          ...currentAttributes,
+          [currentAttrForNewOption.id]: newOption.id,
+        };
+        form.setFieldsValue({ attributeValues: updatedAttributes });
+      }
+      setModalVisible(false);
+    } catch {
+      message.error("Erreur lors de la création de la valeur.");
+    }
+    setSubmitting(false);
+  };
 
-      const payload = {
-        web_id: values.web_id,
+  const handleImageChange = ({ fileList }) => {
+    const limitedList = fileList.slice(0, 5).map((f, i) => ({
+      ...f,
+      is_feature: f.is_feature !== undefined ? f.is_feature : i === 0,
+      alt_text: f.alt_text || "",
+    }));
+    setImageFileList(limitedList);
+  };
+
+  const setFeatureImage = (uid) => {
+    setImageFileList((list) =>
+      list.map((file) => ({
+        ...file,
+        is_feature: file.uid === uid,
+      }))
+    );
+  };
+
+  const setAltText = (uid, text) => {
+    setImageFileList((list) =>
+      list.map((file) => (file.uid === uid ? { ...file, alt_text: text } : file))
+    );
+  };
+
+  const removeImage = (uid) => {
+    setImageFileList((list) => list.filter((file) => file.uid !== uid));
+  };
+
+  // Récupération dynamique de la valeur entrepôt sélectionnée
+  const selectedWarehouse = Form.useWatch("warehouse", form);
+
+  const onFinish = async (values) => {
+    setSubmitting(true);
+    try {
+      const product = await createProduct({
         name: values.name,
         description: values.description,
-        category: values.category,
-        brand: values.brand,
-        product_type: values.product_type,
-        is_active: values.is_active,
-        inventories,
-        specifications,
-      };
+        price: values.price,
+        category_id: values.category,
+        brand_id: values.brand,
+        product_type_id: values.product_type,
+      });
 
-      await createProduct(payload);
-      message.success("Produit créé avec succès !");
+      for (const attr of showAttributes) {
+        const optionId = values.attributeValues?.[attr.id];
+        if (optionId) {
+          await createProductAttributeValue({ product: product.id, option: optionId });
+        }
+      }
+
+      if (values.stock_units && values.warehouse) {
+        await createStock({
+          product: product.id,
+          warehouse_id: values.warehouse,
+          units: values.stock_units,
+          units_sold: 0,
+        });
+      }
+
+      for (const fileObj of imageFileList) {
+        const formData = new FormData();
+        formData.append("product", product.id);
+        formData.append("image", fileObj.originFileObj || fileObj);
+        formData.append("is_feature", fileObj.is_feature ? "true" : "false");
+        formData.append("alt_text", fileObj.alt_text || "");
+
+        await createProductImage(formData);
+      }
+
+      message.success("Produit ajouté avec succès !");
       form.resetFields();
-    } catch {
-      message.error("Erreur lors de la création");
+      setImageFileList([]);
+      setShowAttributes([]);
+      navigate(`/products/${product.id}`);
+    } catch (error) {
+      message.error(
+        "Erreur lors de la création du produit : " +
+          (error.response?.data || error.message || "")
+      );
+    } finally {
+      setSubmitting(false);
     }
   };
 
+  if (loading) {
+    return <Spin tip="Chargement..." style={{ display: "block", margin: "60px auto" }} />;
+  }
+
   return (
-    <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{ is_active: true }}>
-      <Card title="Informations générales" style={{ marginBottom: 24 }}>
-        <Form.Item name="web_id" label="Web ID" rules={[{ required: true }]}>
-          <Input />
-        </Form.Item>
-        <Form.Item name="name" label="Nom" rules={[{ required: true }]}>
-          <Input />
-        </Form.Item>
-        <Form.Item name="description" label="Description" rules={[{ required: true }]}>
-          <Input.TextArea rows={4} />
-        </Form.Item>
-        <Row gutter={16}>
-          <Col span={8}>
-            <Form.Item name="category" label="Catégorie" rules={[{ required: true }]}>
-              <Select placeholder="Sélectionnez une catégorie">
-                {categories.map((c) => (
-                  <Option key={c.id} value={c.id}>{c.name}</Option>
-                ))}
-              </Select>
-            </Form.Item>
-          </Col>
-          <Col span={8}>
-            <Form.Item name="brand" label="Marque" rules={[{ required: true }]}>
-              <Select placeholder="Sélectionnez une marque">
-                {brands.map((b) => (
-                  <Option key={b.id} value={b.id}>{b.name}</Option>
-                ))}
-              </Select>
-            </Form.Item>
-          </Col>
-          <Col span={8}>
-            <Form.Item
-              name="product_type"
-              label="Type de produit"
-              rules={[{ required: true }]}
-            >
-              <Select placeholder="Sélectionnez un type" onChange={onTypeChange}>
-                {productTypes.map((pt) => (
-                  <Option key={pt.id} value={pt.id}>{pt.name}</Option>
-                ))}
-              </Select>
-            </Form.Item>
-          </Col>
-        </Row>
-        <Form.Item name="is_active" label="Produit actif ?" valuePropName="checked">
-          <Switch />
-        </Form.Item>
-      </Card>
-
-      <Card title="Attributs du type" style={{ marginBottom: 24 }}>
-        {typeAttributes.length === 0 ? (
-          <em>Choisissez un type de produit pour afficher les attributs</em>
-        ) : (
-          typeAttributes.map(({ product_attribute }) => (
-            <Form.Item
-              key={product_attribute.id}
-              label={product_attribute.name}
-              name={['attributes', product_attribute.id]}
-              rules={[{ required: true }]}
-            >
-              <Input />
-            </Form.Item>
-          ))
-        )}
-      </Card>
-
-      <Card title="Variantes" style={{ marginBottom: 24 }}>
-        <Form.List name="inventories">
-          {(fields, { add, remove }) => (
-            <>
-              {fields.map(({ key, name, ...rest }) => (
-                <Card
-                  key={key}
-                  type="inner"
-                  title={`Variante ${key + 1}`}
-                  extra={<Button danger onClick={() => remove(name)}>Supprimer</Button>}
-                  style={{ marginBottom: 16 }}
-                >
-                  <Row gutter={16}>
-                    <Col span={8}>
-                      <Form.Item {...rest} name={[name, 'sku']} label="SKU" rules={[{ required: true }]}>
-                        <Input />
-                      </Form.Item>
-                    </Col>
-                    <Col span={8}>
-                      <Form.Item {...rest} name={[name, 'upc']} label="UPC">
-                        <Input />
-                      </Form.Item>
-                    </Col>
-                    <Col span={8}>
-                      <Form.Item {...rest} name={[name, 'product_type']} label="Type variante" rules={[{ required: true }]}>
-                        <Select placeholder="Type variante">
-                          {productTypes.map(pt => (
-                            <Option key={pt.id} value={pt.id}>{pt.name}</Option>
-                          ))}
-                        </Select>
-                      </Form.Item>
-                    </Col>
-                  </Row>
-                  <Row gutter={16}>
-                    <Col span={8}>
-                      <Form.Item {...rest} name={[name, 'brand']} label="Marque variante" rules={[{ required: true }]}>
-                        <Select placeholder="Marque">
-                          {brands.map(b => (
-                            <Option key={b.id} value={b.id}>{b.name}</Option>
-                          ))}
-                        </Select>
-                      </Form.Item>
-                    </Col>
-                    <Col span={8}>
-                      <Form.Item {...rest} name={[name, 'retail_price']} label="Prix détail" rules={[{ required: true }]}>
-                        <InputNumber min={0} style={{ width: '100%' }} />
-                      </Form.Item>
-                    </Col>
-                    <Col span={8}>
-                      <Form.Item {...rest} name={[name, 'store_price']} label="Prix magasin" rules={[{ required: true }]}>
-                        <InputNumber min={0} style={{ width: '100%' }} />
-                      </Form.Item>
-                    </Col>
-                  </Row>
-                  <Row gutter={16}>
-                    <Col span={8}>
-                      <Form.Item {...rest} name={[name, 'is_active']} label="Active ?" valuePropName="checked" initialValue={true}>
-                        <Switch />
-                      </Form.Item>
-                    </Col>
-                    <Col span={8}>
-                      <Form.Item {...rest} name={[name, 'is_default']} label="Par défaut ?" valuePropName="checked">
-                        <Switch />
-                      </Form.Item>
-                    </Col>
-                    <Col span={8}>
-                      <Form.Item {...rest} name={[name, 'weight']} label="Poids (kg)">
-                        <InputNumber min={0} step={0.001} style={{ width: '100%' }} />
-                      </Form.Item>
-                    </Col>
-                  </Row>
-                  {/* Attributs variant */}
-                  <Form.List name={[name, 'attributes']}>
-                    {(attrs, { add: addAttr, remove: removeAttr }) => (
-                      <>
-                        {attrs.map(({ key: attrKey, name: attrName, ...attrRest }) => (
-                          <Row key={attrKey} gutter={16} align="middle">
-                            <Col span={20}>
-                              <Form.Item
-                                {...attrRest}
-                                label="Valeur d'attribut (ID)"
-                                name={attrName}
-                                rules={[{ required: true }]}
-                              >
-                                <InputNumber min={1} style={{ width: '100%' }} />
-                              </Form.Item>
-                            </Col>
-                            <Col span={4}>
-                              <Button type="link" danger onClick={() => removeAttr(attrName)}>Supprimer</Button>
-                            </Col>
-                          </Row>
-                        ))}
-                        <Form.Item>
-                          <Button type="dashed" onClick={() => addAttr()} block icon={<PlusOutlined />}>
-                            Ajouter valeur attribut
-                          </Button>
-                        </Form.Item>
-                      </>
-                    )}
-                  </Form.List>
-                </Card>
-              ))}
-
-              <Form.Item>
-                <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>
-                  Ajouter variante
-                </Button>
+    <>
+      <Card title="Ajouter un nouveau produit" style={{ maxWidth: 900, margin: "auto" }}>
+        <Form form={form} layout="vertical" onFinish={onFinish} autoComplete="off">
+          <Row gutter={16}>
+            <Col span={16}>
+              <Form.Item
+                name="name"
+                label="Nom du produit"
+                rules={[{ required: true, message: "Ce champ est obligatoire" }]}
+              >
+                <Input />
               </Form.Item>
-            </>
-          )}
-        </Form.List>
-      </Card>
 
-      <Card title="Spécifications" style={{ marginBottom: 24 }}>
-        <Collapse>
-          {sections.map(section => (
-            <Panel key={section.id} header={section.name}>
-              <Form.List name="specifications">
-                {(fields, { add, remove }) => (
-                  <>
-                    {fields.map(({ key, name, ...rest }) => (
-                      <Row key={key} gutter={16} align="middle" style={{ marginBottom: 8 }}>
-                        <Col span={10}>
-                          <Form.Item {...rest} name={[name, 'cle_specification']} rules={[{ required: true }]} noStyle>
-                            <Select placeholder="Clé de spécification">
-                              {filteredCleSpecs(section.id).map(cle => (
-                                <Option key={cle.id} value={cle.id}>{cle.name}</Option>
-                              ))}
-                            </Select>
-                          </Form.Item>
-                        </Col>
-                        <Col span={10}>
-                          <Form.Item {...rest} name={[name, 'value']} rules={[{ required: true }]} noStyle>
-                            <Input placeholder="Valeur" />
-                          </Form.Item>
-                        </Col>
-                        <Col span={4}>
-                          <Button danger onClick={() => remove(name)}>Supprimer</Button>
-                        </Col>
-                      </Row>
-                    ))}
+              <Form.Item name="description" label="Description">
+                <TextArea rows={3} />
+              </Form.Item>
 
-                    <Form.Item>
-                      <Button type="dashed" onClick={() => add()} block icon={<PlusOutlined />}>
-                        Ajouter spécification
-                      </Button>
+              <Form.Item
+                name="price"
+                label="Prix (€)"
+                rules={[
+                  { required: true, message: "Ce champ est obligatoire" },
+                  { type: "number", min: 0, message: "Le prix doit être positif" },
+                ]}
+              >
+                <InputNumber style={{ width: "100%" }} />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item
+                name="category"
+                label="Catégorie"
+                rules={[{ required: true, message: "Sélection obligatoire" }]}
+              >
+                <Select showSearch placeholder="Choisir une catégorie" optionFilterProp="children">
+                  {categories.map((cat) => (
+                    <Option key={cat.id} value={cat.id}>
+                      {cat.name}
+                    </Option>
+                  ))}
+                </Select>
+              </Form.Item>
+
+              <Form.Item
+                name="brand"
+                label="Marque"
+                rules={[{ required: true, message: "Sélection obligatoire" }]}
+              >
+                <Select showSearch placeholder="Choisir une marque" optionFilterProp="children">
+                  {brands.map((brand) => (
+                    <Option key={brand.id} value={brand.id}>
+                      {brand.name}
+                    </Option>
+                  ))}
+                </Select>
+              </Form.Item>
+
+              <Form.Item
+                name="product_type"
+                label="Type de produit"
+                rules={[{ required: true, message: "Sélection obligatoire" }]}
+              >
+                <Select
+                  showSearch
+                  onChange={handleTypeChange}
+                  placeholder="Choisir un type"
+                  optionFilterProp="children"
+                >
+                  {types.map((type) => (
+                    <Option key={type.id} value={type.id}>
+                      {type.name}
+                    </Option>
+                  ))}
+                </Select>
+              </Form.Item>
+
+              <Form.Item
+                name="warehouse"
+                label="Entrepôt"
+                rules={[{ required: true, message: "Sélection obligatoire de l'entrepôt" }]}
+              >
+                <Select allowClear showSearch placeholder="Choisir un entrepôt" optionFilterProp="children">
+                  {warehouses.map((wh) => (
+                    <Option key={wh.id} value={wh.id}>
+                      {wh.name}
+                    </Option>
+                  ))}
+                </Select>
+              </Form.Item>
+
+              {selectedWarehouse && (
+                <Form.Item
+                  name="stock_units"
+                  label="Stock initial (unités)"
+                  rules={[
+                    { required: true, message: "Veuillez saisir le stock initial" },
+                    { type: "number", min: 0, message: "Le stock doit être positif" },
+                  ]}
+                >
+                  <InputNumber min={0} style={{ width: "100%" }} />
+                </Form.Item>
+              )}
+            </Col>
+          </Row>
+
+          {showAttributes.length > 0 && (
+            <Card
+              type="inner"
+              size="small"
+              title="Spécifications techniques"
+              style={{ marginTop: 24 }}
+            >
+              <Row gutter={16}>
+                {showAttributes.map((attr) => (
+                  <Col span={12} key={attr.id}>
+                    <Form.Item
+                      name={["attributeValues", attr.id]}
+                      label={attr.name}
+                      rules={[
+                        {
+                          required: true,
+                          message: `Sélectionnez une valeur pour ${attr.name}`,
+                        },
+                      ]}
+                    >
+                      <Select
+                        placeholder={`Choisir une valeur pour ${attr.name}`}
+                        showSearch
+                        optionFilterProp="children"
+                        dropdownRender={(menu) => (
+                          <>
+                            {menu}
+                            <div style={{ padding: 8, display: "flex" }}>
+                              <Button
+                                type="link"
+                                icon={<PlusOutlined />}
+                                onClick={() => openNewOptionModal(attr)}
+                                style={{ padding: 0 }}
+                              >
+                                Ajouter une nouvelle valeur
+                              </Button>
+                            </div>
+                          </>
+                        )}
+                      >
+                        {getOptionsForAttribute(attr.id).map((opt) => (
+                          <Option key={opt.id} value={opt.id}>
+                            {opt.value}
+                          </Option>
+                        ))}
+                      </Select>
                     </Form.Item>
-                  </>
-                )}
-              </Form.List>
-            </Panel>
-          ))}
-        </Collapse>
+                  </Col>
+                ))}
+              </Row>
+            </Card>
+          )}
+
+          <Form.Item label="Photos (max 5)" style={{ marginTop: 24 }}>
+            <Upload
+              accept="image/*"
+              multiple
+              maxCount={5}
+              listType="picture"
+              fileList={imageFileList}
+              beforeUpload={() => false}
+              onChange={handleImageChange}
+            >
+              <Button icon={<UploadOutlined />}>Ajouter des photos</Button>
+            </Upload>
+
+            {imageFileList.length > 0 && (
+              <div style={{ marginTop: 12 }}>
+                {imageFileList.map((file) => (
+                  <div
+                    key={file.uid}
+                    style={{ display: "flex", alignItems: "center", marginBottom: 8 }}
+                  >
+                    <Radio
+                      checked={file.is_feature}
+                      onChange={() => setFeatureImage(file.uid)}
+                      style={{ marginRight: 12 }}
+                    >
+                      Image principale
+                    </Radio>
+                    <Input
+                      placeholder="Description de l'image"
+                      value={file.alt_text}
+                      onChange={(e) => setAltText(file.uid, e.target.value)}
+                      style={{ flex: 1 }}
+                    />
+                    <Button
+                      danger
+                      size="small"
+                      onClick={() => removeImage(file.uid)}
+                      style={{ marginLeft: 12 }}
+                    >
+                      Supprimer
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Form.Item>
+
+          <Form.Item style={{ marginTop: 24 }}>
+            <Button type="primary" htmlType="submit" loading={submitting} block>
+              Ajouter le produit
+            </Button>
+          </Form.Item>
+        </Form>
       </Card>
 
-      <Form.Item>
-        <Button type="primary" htmlType="submit" block>
-          Enregistrer le produit
-        </Button>
-      </Form.Item>
-    </Form>
+      <Modal
+        title={
+          currentAttrForNewOption ? `Ajouter une valeur pour ${currentAttrForNewOption.name}` : ""
+        }
+        visible={modalVisible}
+        onOk={handleAddNewOption}
+        onCancel={() => setModalVisible(false)}
+        confirmLoading={submitting}
+        okText="Ajouter"
+        cancelText="Annuler"
+      >
+        <Input
+          placeholder="Nouvelle valeur"
+          value={newOptionValue}
+          onChange={(e) => setNewOptionValue(e.target.value)}
+          onPressEnter={handleAddNewOption}
+          autoFocus
+        />
+      </Modal>
+    </>
   );
 }

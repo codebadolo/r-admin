@@ -1,271 +1,274 @@
 import {
-  DeleteOutlined,
-  EditOutlined,
-  PlusOutlined
-} from "@ant-design/icons";
-import {
   Button,
+  Card,
+  Col,
   Form,
-  Input,
   InputNumber,
   message,
   Modal,
+  Row,
   Select,
   Space,
   Spin,
+  Statistic,
   Table,
-  Tag,
+  Typography,
 } from "antd";
 import { useEffect, useState } from "react";
+import {
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip
+} from 'recharts';
+import {
+  createStock,
+  deleteStock,
+  fetchProducts,
+  fetchStocks,
+  fetchWarehouses,
+  updateStock,
+} from "../services/productService";
 
-const { Search } = Input;
 const { Option } = Select;
+const { Title } = Typography;
+
+const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#AA336A', '#336AAA'];
 
 export default function StockPage() {
+  const [loading, setLoading] = useState(true);
   const [stocks, setStocks] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [modalVisible, setModalVisible] = useState(false);
+  const [products, setProducts] = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
   const [editingStock, setEditingStock] = useState(null);
+  const [modalVisible, setModalVisible] = useState(false);
   const [form] = Form.useForm();
-  const [searchTerm, setSearchTerm] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
-  // Chargement des données (à adapter avec votre API)
   useEffect(() => {
-    loadStocks();
+    async function loadAll() {
+      setLoading(true);
+      try {
+        const [stocksData, productsData, warehousesData] = await Promise.all([
+          fetchStocks(),
+          fetchProducts(),
+          fetchWarehouses(),
+        ]);
+        setStocks(stocksData);
+        setProducts(productsData);
+        setWarehouses(warehousesData);
+      } catch (e) {
+        message.error("Erreur de chargement des données");
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadAll();
   }, []);
 
-  const loadStocks = async () => {
-    setLoading(true);
-    try {
-      // Remplacez par appel API réel
-      // const res = await fetchStocks();
-      // setStocks(res.data);
-      // Exemple statique :
-      setStocks([
-        {
-          id: 1,
-          name: "Produit A",
-          sku: "SKU123",
-          quantity: 150,
-          price: 29.99,
-          status: "Disponible",
-        },
-        {
-          id: 2,
-          name: "Produit B",
-          sku: "SKU456",
-          quantity: 5,
-          price: 59.99,
-          status: "Faible stock",
-        },
-        {
-          id: 3,
-          name: "Produit C",
-          sku: "SKU789",
-          quantity: 0,
-          price: 19.99,
-          status: "Rupture",
-        },
-      ]);
-    } catch {
-      message.error("Erreur lors du chargement des stocks");
-    }
-    setLoading(false);
-  };
+  // Statistiques calculées
+  const totalUnits = stocks.reduce((sum, item) => sum + (item.units || 0), 0);
+  const distinctProducts = new Set(stocks.map(s => s.product?.id)).size;
+  const distinctWarehouses = new Set(stocks.map(s => s.warehouse?.id)).size;
 
-  // Ouvrir modal création ou édition
+  // Données graphiques : stock par entrepôt
+  const stockByWarehouse = warehouses.map((wh) => {
+    const total = stocks
+      .filter((s) => s.warehouse?.id === wh.id)
+      .reduce((sum, s) => sum + (s.units || 0), 0);
+    return { name: wh.name, value: total };
+  }).filter(w => w.value > 0);
+
+  // Modal & formulaire gestion stock (identique précédent exemple)
   const openModal = (stock = null) => {
     setEditingStock(stock);
-    form.resetFields();
-
     if (stock) {
-      form.setFieldsValue(stock);
+      form.setFieldsValue({
+        product: stock.product?.id,
+        warehouse: stock.warehouse?.id,
+        units: stock.units,
+      });
+    } else {
+      form.resetFields();
     }
     setModalVisible(true);
   };
 
-  // Supprimer un stock fictif
-  const handleDelete = (id) => {
+  const handleCancel = () => {
+    setModalVisible(false);
+    setEditingStock(null);
+    form.resetFields();
+  };
+
+  const onFinish = async (values) => {
+    setSubmitting(true);
+    try {
+      if (editingStock) {
+        await updateStock(editingStock.id, values);
+        message.success("Stock mis à jour");
+      } else {
+        await createStock(values);
+        message.success("Stock créé");
+      }
+      const updatedStocks = await fetchStocks();
+      setStocks(updatedStocks);
+      handleCancel();
+    } catch (e) {
+      message.error("Erreur lors de la sauvegarde");
+      console.error(e);
+    }
+    setSubmitting(false);
+  };
+
+  const handleDelete = async (stock) => {
     Modal.confirm({
-      title: "Confirmer la suppression de ce stock ?",
-      okText: "Oui",
-      cancelText: "Non",
-      onOk() {
-        // Remplacer par appel API réel
-        setStocks((prev) => prev.filter((s) => s.id !== id));
-        message.success("Stock supprimé");
+      title: "Confirmer la suppression",
+      content: `Supprimer le stock pour ${stock.product?.name} en entrepôt ${stock.warehouse?.name} ?`,
+      okText: "Supprimer",
+      okType: "danger",
+      cancelText: "Annuler",
+      async onOk() {
+        try {
+          await deleteStock(stock.id);
+          message.success("Stock supprimé");
+          setStocks((prev) => prev.filter((s) => s.id !== stock.id));
+        } catch (e) {
+          message.error("Erreur lors de la suppression");
+          console.error(e);
+        }
       },
     });
   };
 
-  const handleSubmit = async () => {
-    try {
-      const values = await form.validateFields();
-
-      if (editingStock) {
-        // Mise à jour en API
-        setStocks((prev) =>
-          prev.map((s) => (s.id === editingStock.id ? { ...s, ...values } : s))
-        );
-        message.success("Stock mis à jour");
-      } else {
-        // Création en API
-        const newStock = { id: Date.now(), ...values };
-        setStocks((prev) => [...prev, newStock]);
-        message.success("Stock créé");
-      }
-
-      setModalVisible(false);
-    } catch {
-      message.error("Veuillez vérifier les informations saisies");
-    }
-  };
-
-  // Filtrage simple des stocks
-  const filteredStocks = stocks.filter(
-    (item) =>
-      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.sku.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  // Rendu de la colonne statut avec tags colorés
-  const renderStatusTag = (status) => {
-    switch (status) {
-      case "Disponible":
-        return <Tag color="green">{status}</Tag>;
-      case "Faible stock":
-        return <Tag color="orange">{status}</Tag>;
-      case "Rupture":
-        return <Tag color="red">{status}</Tag>;
-      default:
-        return <Tag>{status}</Tag>;
-    }
-  };
-
   const columns = [
-    { title: "Produit", dataIndex: "name", key: "name" },
-    { title: "SKU", dataIndex: "sku", key: "sku" },
-    { title: "Quantité", dataIndex: "quantity", key: "quantity" },
-    {
-      title: "Prix unitaire",
-      dataIndex: "price",
-      key: "price",
-      render: (price) => `${price} €`,
-    },
-    {
-      title: "Statut",
-      dataIndex: "status",
-      key: "status",
-      render: renderStatusTag,
-    },
+    { title: "Produit", dataIndex: ["product", "name"], key: "product", sorter: (a, b) => a.product.name.localeCompare(b.product.name) },
+    { title: "Entrepôt", dataIndex: ["warehouse", "name"], key: "warehouse", sorter: (a, b) => a.warehouse.name.localeCompare(b.warehouse.name) },
+    { title: "Quantité", dataIndex: "units", key: "units", sorter: (a, b) => a.units - b.units },
     {
       title: "Actions",
       key: "actions",
       render: (_, record) => (
         <Space>
-          <Button icon={<EditOutlined />} onClick={() => openModal(record)}>
-            Modifier
-          </Button>
-          <Button
-            icon={<DeleteOutlined />}
-            danger
-            onClick={() => handleDelete(record.id)}
-          >
-            Supprimer
-          </Button>
+          <Button onClick={() => openModal(record)}>Modifier</Button>
+          <Button danger onClick={() => handleDelete(record)}>Supprimer</Button>
         </Space>
       ),
     },
   ];
 
-  return (
-    <>
-      <Space style={{ marginBottom: 16 }}>
-        <Search
-          placeholder="Rechercher produit ou SKU"
-          onChange={(e) => setSearchTerm(e.target.value)}
-          allowClear
-          style={{ width: 300 }}
-        />
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => openModal()}>
-          Ajouter un stock
-        </Button>
-      </Space>
+  if (loading) {
+    return <Spin tip="Chargement..." style={{ marginTop: 60, display: "block" }} />;
+  }
 
-      {loading ? (
-        <Spin size="large" />
-      ) : (
-        <Table
-          columns={columns}
-          dataSource={filteredStocks}
-          rowKey="id"
-          pagination={{ pageSize: 8 }}
-        />
-      )}
+  return (
+    <div style={{ maxWidth: 1000, margin: "auto", padding: 24 }}>
+      <Title level={3} style={{ marginBottom: 24 }}>Gestion des stocks</Title>
+
+      <Row gutter={16} style={{ marginBottom: 24 }}>
+        <Col span={8}>
+          <Card>
+            <Statistic title="Total unités en stock" value={totalUnits} />
+          </Card>
+        </Col>
+        <Col span={8}>
+          <Card>
+            <Statistic title="Produits distincts" value={distinctProducts} />
+          </Card>
+        </Col>
+        <Col span={8}>
+          <Card>
+            <Statistic title="Entrepôts actifs" value={distinctWarehouses} />
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Graphique de répartition par entrepôt */}
+      <Card title="Répartition stock par entrepôt" style={{ marginBottom: 24 }}>
+        {stockByWarehouse.length > 0 ? (
+          <ResponsiveContainer width="100%" height={300}>
+            <PieChart>
+              <Pie
+                data={stockByWarehouse}
+                dataKey="value"
+                nameKey="name"
+                cx="50%"
+                cy="50%"
+                outerRadius={100}
+                label
+              >
+                {stockByWarehouse.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                ))}
+              </Pie>
+              <Tooltip />
+              <Legend />
+            </PieChart>
+          </ResponsiveContainer>
+        ) : (
+          <p>Aucun stock disponible</p>
+        )}
+      </Card>
+
+      <Button type="primary" onClick={() => openModal()} style={{ marginBottom: 16 }}>
+        Ajouter un stock
+      </Button>
+
+      <Table
+        rowKey="id"
+        columns={columns}
+        dataSource={stocks}
+        pagination={{ pageSize: 10 }}
+      />
 
       <Modal
-        title={editingStock ? "Modifier un stock" : "Ajouter un stock"}
         visible={modalVisible}
-        onCancel={() => setModalVisible(false)}
-        onOk={handleSubmit}
-        destroyOnClose
+        title={editingStock ? "Modifier un stock" : "Ajouter un stock"}
+        onCancel={handleCancel}
+        onOk={() => form.submit()}
+        okButtonProps={{ loading: submitting }}
+        cancelButtonProps={{ disabled: submitting }}
       >
-        <Form form={form} layout="vertical" preserve={false}>
+        <Form form={form} layout="vertical" onFinish={onFinish}>
           <Form.Item
-            label="Nom du produit"
-            name="name"
-            rules={[{ required: true, message: "Nom requis" }]}
+            name="product"
+            label="Produit"
+            rules={[{ required: true, message: "Sélectionnez un produit" }]}
           >
-            <Input />
+            <Select showSearch placeholder="Sélectionnez un produit" optionFilterProp="children">
+              {products.map((p) => (
+                <Option key={p.id} value={p.id}>
+                  {p.name}
+                </Option>
+              ))}
+            </Select>
           </Form.Item>
+
           <Form.Item
-            label="SKU"
-            name="sku"
-            rules={[{ required: true, message: "SKU requis" }]}
+            name="warehouse"
+            label="Entrepôt"
+            rules={[{ required: true, message: "Sélectionnez un entrepôt" }]}
           >
-            <Input />
+            <Select showSearch placeholder="Sélectionnez un entrepôt" optionFilterProp="children">
+              {warehouses.map((wh) => (
+                <Option key={wh.id} value={wh.id}>
+                  {wh.name}
+                </Option>
+              ))}
+            </Select>
           </Form.Item>
+
           <Form.Item
+            name="units"
             label="Quantité"
-            name="quantity"
-            rules={[
-              { required: true, message: "Quantité requise" },
-              {
-                type: "number",
-                min: 0,
-                message: "La quantité doit être positive",
-              },
-            ]}
+            rules={[{ required: true, message: "Entrez la quantité" }]}
           >
             <InputNumber min={0} style={{ width: "100%" }} />
           </Form.Item>
-          <Form.Item
-            label="Prix unitaire (€)"
-            name="price"
-            rules={[
-              { required: true, message: "Prix requis" },
-              {
-                type: "number",
-                min: 0,
-                message: "Le prix doit être positif",
-              },
-            ]}
-          >
-            <InputNumber min={0} style={{ width: "100%" }} step={0.01} />
-          </Form.Item>
-          <Form.Item
-            label="Statut"
-            name="status"
-            rules={[{ required: true, message: "Statut requis" }]}
-          >
-            <Select placeholder="Sélectionnez un statut">
-              <Option value="Disponible">Disponible</Option>
-              <Option value="Faible stock">Faible stock</Option>
-              <Option value="Rupture">Rupture</Option>
-            </Select>
-          </Form.Item>
         </Form>
       </Modal>
-    </>
+    </div>
   );
 }

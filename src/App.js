@@ -8,6 +8,7 @@ import MainLayout from './layouts/MainLayout';
 import AjouterProduit from './pages/AjouterProduit'; // importez votre page
 import DashboardPage from './pages/DashboardPage';
 import LoginPage from './pages/LoginPage';
+import ProductEditPage from "./pages/ProductEditPage";
 import UserDetail from './pages/UserDetail';
 // Import des autres pages protégées
 import AttributesPage from './pages/AttributesPage';
@@ -62,6 +63,7 @@ function App() {
                       <Route path="/products/media" element={<MediaPage />} />
                       <Route path="/products/stock" element={<StockPage />} />
 <Route path="/products/create" element={<AjouterProduit />} />
+ <Route path="/products/edit/:id" element={<ProductEditPage />} />
                       {/* Spécifications */}
                       <Route path="/specifications/sections" element={<SectionsPage />} />
                       <Route path="/specifications/keys" element={<KeysPage />} />
