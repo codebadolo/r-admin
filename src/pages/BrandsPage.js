@@ -13,7 +13,7 @@ export default function BrandsPage() {
 
   return (
     <div style={{ padding: 24 }}>
-      <Title level={2}>Gestion des Produits</Title>
+    
       <Paragraph>Administrer marques, catégories, attributs...</Paragraph>
 
       <Tabs activeKey={activeTab} onChange={setActiveTab} style={{ marginTop: 20 }}>

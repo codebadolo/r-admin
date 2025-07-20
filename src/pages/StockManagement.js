@@ -228,6 +228,7 @@ export default function StockManagement() {
       filters: brands.map((b) => ({ text: b.name, value: b.id })),
       onFilter: (value, record) => record.product?.brand?.id === value,
       ellipsis: true,
+      width: 100,
     },
     {
       title: "Catégorie",
@@ -238,12 +239,12 @@ export default function StockManagement() {
       ellipsis: true,
     },
    {
-  title: "Quantité",
+  title: "Qte",
   dataIndex: "units",
   key: "units",
   align: "right",
   sorter: (a, b) => (a.units ?? 0) - (b.units ?? 0),
-  width: 100,
+  width: 80,
 },
 {
   title: "Entrepôt",
@@ -261,7 +262,7 @@ export default function StockManagement() {
     {
       title: "Actions",
       key: "actions",
-      width: 90,
+ 
       render: (_, record) => (
         <Space size="middle">
           <Tooltip title="Modifier">
@@ -286,20 +287,20 @@ export default function StockManagement() {
 
   if (loading) {
     return (
-      <Spin tip="Chargement..." style={{ marginTop: 60, display: "block" }} />
+      <Spin tip="Chargement..." style={{ marginTop: 20, display: "block" }} />
     );
   }
 
   return (
     <div
       style={{
-        maxWidth: 1700,
+      
         width: "100%",
         margin: "auto",
-        overflowX: "auto",
+        
       }}
-    >
-      <Row gutter={[16, 16]} style={{ marginBottom: 12 }}>
+    >  
+      <Row gutter={[16, 16]} style={{ marginBottom: 2 }}>
         <Col xs={24} sm={12} md={6}>
           <Input
             allowClear
@@ -390,7 +391,7 @@ export default function StockManagement() {
         rowKey="id"
         columns={columns}
         dataSource={filteredStocks}
-        pagination={{ pageSize: 15 }}
+        pagination={{ pageSize: 10 }}
         scroll={{ y: 650, x: 1000 }}
         bordered
       />
