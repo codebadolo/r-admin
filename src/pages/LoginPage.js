@@ -17,7 +17,7 @@ const LoginPage = () => {
     setError(null);
     try {
       await login(values.email, values.password);
-      navigate('/dashboard');
+      navigate('/');
     } catch (err) {
       setError('Email ou mot de passe incorrect');
     } finally {

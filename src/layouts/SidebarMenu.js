@@ -78,11 +78,11 @@ const SidebarMenu = () => {
           Tableau de bord
         </Menu.Item>
 
-        {(hasRole('Admin') || hasRole('Vendeur')) && (
+        {(hasRole('Admin') || hasRole('Gestionnaire Produit')) && (
           <SubMenu key="products" icon={<ShopOutlined />} title="Produits">
             <Menu.Item key="/products/catalogue">Catalogue</Menu.Item>
-            {hasRole('Admin') && <Menu.Item key="/products/brands">Marques</Menu.Item>}
-            <Menu.Item key="/products/categories">Catégories</Menu.Item>
+            {(hasRole('Admin') || hasRole('Gestionnaire Produit')) && <Menu.Item key="/products/brands">Infos</Menu.Item>}
+          
          
           
             <Menu.Item key="/products/stock">Stock</Menu.Item>
@@ -99,7 +99,7 @@ const SidebarMenu = () => {
           </SubMenu>
         )}
 
-        {(hasRole('Admin') || hasRole('Vendeur')) && (
+        {(hasRole('Admin') || hasRole('Gestionnaire Produit')) && (
           <>
             <Menu.Item key="/orders" icon={<ShoppingCartOutlined />}>
               Commandes

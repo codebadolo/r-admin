@@ -17,7 +17,7 @@ export default function ProductTable() {
   const [brands, setBrands] = useState([]);
   const [types, setTypes] = useState([]);
  
-  const [pagination, setPagination] = useState({ current: 1, pageSize: 14 });
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 10 });
   const [searchTerm, setSearchTerm] = useState("");
   const [filtered, setFiltered] = useState([]);
   const navigate = useNavigate();

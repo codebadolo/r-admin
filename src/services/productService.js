@@ -1,6 +1,6 @@
 // src/services/productService.js
+import axios from 'axios';
 import api from './api';
-
 //
 // ============ PRODUCT CRUD ============
 //
@@ -75,13 +75,14 @@ export function fetchBrand(id) {
   return api.get(`/brands/${id}/`).then(res => res.data);
 }
 
-export function createBrand(data) {
-  return api.post('/brands/', data).then(res => res.data);
+export function createBrand(formData) {
+  return axios.post("/api/brands/", formData);
 }
 
-export function updateBrand(id, data) {
-  return api.put(`/brands/${id}/`, data).then(res => res.data);
+export function updateBrand(id, formData) {
+  return axios.put(`/api/brands/${id}/`, formData);
 }
+
 
 export function patchBrand(id, data) {
   return api.patch(`/brands/${id}/`, data).then(res => res.data);
