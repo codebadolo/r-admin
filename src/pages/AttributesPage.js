@@ -1,71 +1,320 @@
-import { DeleteOutlined, EditOutlined, PlusOutlined } from '@ant-design/icons';
-import { Button, Form, Input, List, Modal, Typography } from 'antd';
-import { useState } from 'react';
+import {
+  Button,
+  Form,
+  Input,
+  message,
+  Modal,
+  Popconfirm,
+  Select,
+  Space,
+  Table,
+} from "antd";
+import { useEffect, useState } from "react";
 
-const { Title } = Typography;
+import {
+  createProductAttribute,
+  createProductAttributeValue,
+  deleteProductAttribute,
+  deleteProductAttributeValue,
+  fetchProductAttributes,
+  fetchProductAttributeValues,
+  fetchProductTypes,
+  updateProductAttribute,
+} from "../services/productService";
 
-const AttributesPage = () => {
-  const [attributes, setAttributes] = useState([
-    { id: 1, name: 'Couleur', description: 'Couleur du produit' },
-    { id: 2, name: 'Taille', description: 'Taille ou dimensions' },
-  ]);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingAttr, setEditingAttr] = useState(null);
-  const [form] = Form.useForm();
+const { Option } = Select;
 
-  const showModal = (attr = null) => {
-    setEditingAttr(attr);
-    form.resetFields();
-    if (attr) form.setFieldsValue(attr);
-    setModalVisible(true);
+export default function AttributesManager() {
+  const [productTypes, setProductTypes] = useState([]);
+  const [selectedProductType, setSelectedProductType] = useState(null);
+
+  const [attributes, setAttributes] = useState([]);
+  const [loadingAttributes, setLoadingAttributes] = useState(false);
+
+  // Modal gestion attribut
+  const [attrModalVisible, setAttrModalVisible] = useState(false);
+  const [editingAttribute, setEditingAttribute] = useState(null);
+  const [attrForm] = Form.useForm();
+
+  // Modal gestion valeurs/options d'attribut
+  const [valuesModalVisible, setValuesModalVisible] = useState(false);
+  const [selectedAttribute, setSelectedAttribute] = useState(null);
+  const [attributeValues, setAttributeValues] = useState([]);
+  const [loadingValues, setLoadingValues] = useState(false);
+  const [valuesForm] = Form.useForm();
+
+  // Chargement des types de produits
+  useEffect(() => {
+    loadProductTypes();
+  }, []);
+
+  const loadProductTypes = async () => {
+    try {
+      const types = await fetchProductTypes();
+      setProductTypes(types);
+      if (types.length > 0) setSelectedProductType(types[0].id);
+    } catch {
+      message.error("Erreur chargement des types de produits");
+    }
   };
 
-  const handleOk = () => {
-    form.validateFields().then(values => {
-      if (editingAttr) {
-        setAttributes(attributes.map(a => (a.id === editingAttr.id ? { ...a, ...values } : a)));
-      } else {
-        setAttributes([...attributes, { id: Date.now(), ...values }]);
+  // Charger les attributs pour le type sélectionné
+  useEffect(() => {
+    if (selectedProductType) loadAttributes(selectedProductType);
+    else setAttributes([]);
+  }, [selectedProductType]);
+
+  const loadAttributes = async (typeId) => {
+    setLoadingAttributes(true);
+    try {
+      // Filtrer les attributs par type via paramètre si supporté, sinon filtrer localement
+      const allAttributes = await fetchProductAttributes();
+      // On filtre localement ici par exemple, adapter si l’API accepte un filtre
+      const filtered = allAttributes.filter(attr => attr.product_type === typeId);
+      setAttributes(filtered);
+    } catch {
+      message.error("Erreur chargement des attributs");
+    } finally {
+      setLoadingAttributes(false);
+    }
+  };
+
+  // Ouvrir modal ajout/modification attribut
+  const openAttrModal = (attribute = null) => {
+    setEditingAttribute(attribute);
+    if (attribute) {
+      attrForm.setFieldsValue({
+        name: attribute.name,
+        type: attribute.type,
+        // On pourra préremplir plus si besoin
+      });
+    } else {
+      attrForm.resetFields();
+    }
+    setAttrModalVisible(true);
+  };
+
+  const closeAttrModal = () => {
+    setAttrModalVisible(false);
+    setEditingAttribute(null);
+    attrForm.resetFields();
+  };
+
+  const onAttrFinish = async (values) => {
+    try {
+      if (!selectedProductType) {
+        message.error("Sélectionnez un type de produit");
+        return;
       }
-      setModalVisible(false);
-      // TODO: API save
-    });
+      const payload = {
+        ...values,
+        product_type: selectedProductType,
+      };
+      if (editingAttribute) {
+        await updateProductAttribute(editingAttribute.id, payload);
+        message.success("Attribut modifié");
+      } else {
+        await createProductAttribute(payload);
+        message.success("Attribut créé");
+      }
+      await loadAttributes(selectedProductType);
+      closeAttrModal();
+    } catch {
+      message.error("Erreur sauvegarde attribut");
+    }
   };
 
-  const handleDelete = id => setAttributes(attributes.filter(a => a.id !== id));
+  // Gestion modal valeurs/options d'attribut
+  const openValuesModal = async (attribute) => {
+    setSelectedAttribute(attribute);
+    setLoadingValues(true);
+    try {
+      const values = await fetchProductAttributeValues({ attribute: attribute.id });
+      setAttributeValues(values);
+      setValuesModalVisible(true);
+    } catch {
+      message.error("Erreur chargement des valeurs");
+    } finally {
+      setLoadingValues(false);
+    }
+  };
+
+  const closeValuesModal = () => {
+    setSelectedAttribute(null);
+    setAttributeValues([]);
+    setValuesModalVisible(false);
+    valuesForm.resetFields();
+  };
+
+  const addValue = async (vals) => {
+    try {
+      await createProductAttributeValue({
+        ...vals,
+        attribute: selectedAttribute.id,
+      });
+      message.success("Valeur ajoutée");
+      // Recharge valeurs
+      const values = await fetchProductAttributeValues({ attribute: selectedAttribute.id });
+      setAttributeValues(values);
+      valuesForm.resetFields();
+    } catch {
+      message.error("Erreur ajout valeur");
+    }
+  };
+
+  const deleteValue = async (id) => {
+    try {
+      await deleteProductAttributeValue(id);
+      message.success("Valeur supprimée");
+      const values = await fetchProductAttributeValues({ attribute: selectedAttribute.id });
+      setAttributeValues(values);
+    } catch {
+      message.error("Erreur suppression valeur");
+    }
+  };
+
+  const attributeColumns = [
+    { title: "Nom", dataIndex: "name", key: "name" },
+    { title: "Type", dataIndex: "type", key: "type" },
+    {
+      title: "Actions",
+      key: "actions",
+      render: (_, record) => (
+        <Space>
+          <Button onClick={() => openAttrModal(record)}>Modifier</Button>
+          <Button onClick={() => openValuesModal(record)}>Gérer valeurs</Button>
+          <Popconfirm
+            title="Confirmer la suppression ?"
+            onConfirm={async () => {
+              try {
+                await deleteProductAttribute(record.id);
+                message.success("Attribut supprimé");
+                loadAttributes(selectedProductType);
+              } catch {
+                message.error("Erreur suppression");
+              }
+            }}
+          >
+            <Button danger>Supprimer</Button>
+          </Popconfirm>
+        </Space>
+      ),
+    },
+  ];
+
+  const valuesColumns = [
+    { title: "Valeur", dataIndex: "value", key: "value" },
+    {
+      title: "Actions",
+      key: "actions",
+      render: (_, record) => (
+        <Popconfirm title="Confirmer la suppression ?" onConfirm={() => deleteValue(record.id)}>
+          <Button danger>Supprimer</Button>
+        </Popconfirm>
+      ),
+    },
+  ];
 
   return (
     <>
-      <Title level={2}>Attributs Produits</Title>
-      <Button type="primary" icon={<PlusOutlined />} onClick={() => showModal()} style={{ marginBottom: 16 }}>
-        Ajouter un attribut
-      </Button>
-      <List
-        bordered
+      <div style={{ marginBottom: 16 }}>
+        <span style={{ marginRight: 8 }}>Type de produit :</span>
+        <Select
+          style={{ width: 250 }}
+          value={selectedProductType}
+          onChange={setSelectedProductType}
+          placeholder="Sélectionner un type"
+          allowClear
+        >
+          {productTypes.map((pt) => (
+            <Option key={pt.id} value={pt.id}>
+              {pt.name}
+            </Option>
+          ))}
+        </Select>
+
+        <Button
+          type="primary"
+          style={{ marginLeft: 16 }}
+          onClick={() => openAttrModal()}
+          disabled={!selectedProductType}
+        >
+          Ajouter un attribut
+        </Button>
+      </div>
+
+      <Table
         dataSource={attributes}
-        renderItem={item => (
-          <List.Item
-            actions={[
-              <Button icon={<EditOutlined />} onClick={() => showModal(item)} />,
-              <Button icon={<DeleteOutlined />} danger onClick={() => handleDelete(item.id)} />,
-            ]}
-          >
-            <List.Item.Meta title={item.name} description={item.description} />
-          </List.Item>
-        )}
+        columns={attributeColumns}
+        rowKey="id"
+        loading={loadingAttributes}
+        pagination={{ pageSize: 10 }}
       />
-      <Modal title={editingAttr ? 'Modifier attribut' : 'Ajouter attribut'} visible={modalVisible} onOk={handleOk} onCancel={() => setModalVisible(false)} destroyOnClose>
-        <Form form={form} layout="vertical">
-          <Form.Item name="name" label="Nom" rules={[{ required: true, message: 'Veuillez saisir le nom' }]}>
+
+      {/* Modal création/modification attribut */}
+      <Modal
+        visible={attrModalVisible}
+        title={editingAttribute ? "Modifier attribut" : "Ajouter attribut"}
+        onCancel={closeAttrModal}
+        onOk={() => attrForm.submit()}
+        destroyOnClose
+      >
+        <Form form={attrForm} layout="vertical" onFinish={onAttrFinish}>
+          <Form.Item
+            label="Nom"
+            name="name"
+            rules={[{ required: true, message: "Veuillez saisir un nom" }]}
+          >
             <Input />
           </Form.Item>
-          <Form.Item name="description" label="Description">
-            <Input.TextArea rows={3} />
+          <Form.Item
+            label="Type"
+            name="type"
+            rules={[{ required: true, message: "Veuillez sélectionner un type" }]}
+          >
+            <Select placeholder="Sélectionner un type">
+              <Option value="text">Texte</Option>
+              <Option value="number">Nombre</Option>
+              <Option value="select">Liste déroulante</Option>
+              {/* ajoute d’autres types si besoin */}
+            </Select>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Modal gestion des valeurs/options */}
+      <Modal
+        visible={valuesModalVisible}
+        title={`Valeurs de l'attribut : ${selectedAttribute?.name || ""}`}
+        footer={null}
+        onCancel={closeValuesModal}
+        destroyOnClose
+      >
+        <Table
+          dataSource={attributeValues}
+          columns={valuesColumns}
+          rowKey="id"
+          loading={loadingValues}
+          pagination={false}
+          size="small"
+          style={{ marginBottom: 16 }}
+        />
+
+        <Form form={valuesForm} layout="inline" onFinish={addValue}>
+          <Form.Item
+            name="value"
+            rules={[{ required: true, message: "Veuillez saisir une valeur" }]}
+            style={{ flex: 1 }}
+          >
+            <Input placeholder="Nouvelle valeur" />
+          </Form.Item>
+          <Form.Item>
+            <Button type="primary" htmlType="submit">
+              Ajouter
+            </Button>
           </Form.Item>
         </Form>
       </Modal>
     </>
   );
-};
-
-export default AttributesPage;
+}

@@ -5,11 +5,10 @@ import {
   DashboardOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
-  ProfileOutlined,
   SettingOutlined,
   ShopOutlined,
   ShoppingCartOutlined,
-  UserOutlined,
+  UserOutlined
 } from '@ant-design/icons';
 import { Layout, Menu } from 'antd';
 import { useEffect, useState } from 'react';
@@ -84,20 +83,13 @@ const SidebarMenu = () => {
             <Menu.Item key="/products/catalogue">Catalogue</Menu.Item>
             {hasRole('Admin') && <Menu.Item key="/products/brands">Marques</Menu.Item>}
             <Menu.Item key="/products/categories">Catégories</Menu.Item>
-            <Menu.Item key="/products/types">Types de produits</Menu.Item>
-            <Menu.Item key="/products/attributes">Attributs produits</Menu.Item>
-            <Menu.Item key="/products/inventories">Variantes</Menu.Item>
-            <Menu.Item key="/products/media">Médias</Menu.Item>
+         
+          
             <Menu.Item key="/products/stock">Stock</Menu.Item>
           </SubMenu>
         )}
 
-        {(hasRole('Admin') || hasRole('Manager')) && (
-          <SubMenu key="specifications" icon={<ProfileOutlined />} title="Spécifications">
-            <Menu.Item key="/specifications/sections">Sections</Menu.Item>
-            <Menu.Item key="/specifications/keys">Clés</Menu.Item>
-          </SubMenu>
-        )}
+     
 
         {hasRole('Admin') && (
           <SubMenu key="users" icon={<UserOutlined />} title="Utilisateurs & Rôles">

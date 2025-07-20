@@ -16,8 +16,8 @@ export default function ProductTable() {
   const [categories, setCategories] = useState([]);
   const [brands, setBrands] = useState([]);
   const [types, setTypes] = useState([]);
-  const [warehouses, setWarehouses] = useState([]);
-  const [pagination, setPagination] = useState({ current: 1, pageSize: 10 });
+ 
+  const [pagination, setPagination] = useState({ current: 1, pageSize: 14 });
   const [searchTerm, setSearchTerm] = useState("");
   const [filtered, setFiltered] = useState([]);
   const navigate = useNavigate();
@@ -26,7 +26,7 @@ export default function ProductTable() {
     async function loadData() {
       setLoading(true);
       try {
-        const [prods, cats, brds, tps, whs] = await Promise.all([
+        const [prods, cats, brds, tps,] = await Promise.all([
           fetchProducts({}),
           fetchCategories(),
           fetchBrands(),
@@ -37,16 +37,19 @@ export default function ProductTable() {
         setCategories(cats);
         setBrands(brds);
         setTypes(tps);
-        setWarehouses(whs);
+       
         setFiltered(prods);
       } catch (error) {
-        console.error("Error loading data", error);
+        console.error("Erreur lors du chargement des données", error);
       } finally {
         setLoading(false);
       }
     }
     loadData();
   }, []);
+
+
+
 
   const handleSearch = (e) => {
     const val = e.target.value.toLowerCase();
@@ -93,36 +96,9 @@ export default function ProductTable() {
     setPagination(newPagination);
   };
 
-  const getTotalStock = (product) =>
-    product.stocks?.reduce((acc, stock) => acc + (stock.units ?? 0), 0) ?? 0;
-
-  const getSoldStock = (product) =>
-    product.stocks?.reduce((acc, stock) => acc + (stock.units_sold ?? 0), 0) ?? 0;
-
-  // Helper to get warehouse name from warehouse object or ID fallback
-  const getWarehouseNameById = (id) => {
-    const wh = warehouses.find((w) => w.id === id);
-    return wh ? wh.name : "-";
-  };
-
-  const renderWarehouseColumn = (_, product) => {
-    if (!product.stocks || product.stocks.length === 0) return "-";
-    const firstStock = product.stocks[0];
-    if (!firstStock) return "-";
-
-    // Check warehouse: can be object or just ID
-    if (typeof firstStock.warehouse === "object" && firstStock.warehouse !== null) {
-      return firstStock.warehouse.name || "-";
-    } else if (typeof firstStock.warehouse === "number") {
-      return getWarehouseNameById(firstStock.warehouse);
-    }
-    return "-";
-  };
-
   const getFirstImage = (product) =>
     product.images && product.images.length ? product.images[0].image : null;
 
-  // Prepare filtered + paginated data for table
   const paginatedData = filtered.slice(
     (pagination.current - 1) * pagination.pageSize,
     pagination.current * pagination.pageSize
@@ -138,7 +114,7 @@ export default function ProductTable() {
         return img ? (
           <img
             src={img}
-            alt=""
+            alt={r.name}
             style={{ width: 48, height: 48, objectFit: "cover", borderRadius: 4 }}
           />
         ) : (
@@ -156,7 +132,7 @@ export default function ProductTable() {
     {
       title: "Marque",
       key: "brand",
-      filters: brands.map((c) => ({ text: c.name, value: c.id })),
+      filters: brands.map((b) => ({ text: b.name, value: b.id })),
       render: (_, r) => r.brand?.name || "-",
     },
     {
@@ -171,25 +147,10 @@ export default function ProductTable() {
       key: "price",
       render: (p) => Number(p).toFixed(2),
     },
-    {
-      title: "Stock dispo",
-      key: "stock",
-      render: (_, r) => {
-        const total = getTotalStock(r);
-        return total > 5 ? <Tag color="green">{total}</Tag> : <Tag color="red">{total}</Tag>;
-      },
-    },
-    {
-      title: "Stock vendu",
-      key: "stock_sold",
-      render: (_, r) => <span>{getSoldStock(r)}</span>,
-    },
-    {
-      title: "Entrepôt",
-      key: "main_warehouse",
-      render: renderWarehouseColumn,
-    },
-    {
+
+
+
+  {
       title: "Statut",
       dataIndex: "is_active",
       key: "is_active",
@@ -243,6 +204,7 @@ export default function ProductTable() {
           onChange={handleSearch}
           style={{ width: 250 }}
           allowClear
+          value={searchTerm}
         />
       </Space>
       <Table

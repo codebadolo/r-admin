@@ -10,8 +10,16 @@ const MainLayout = ({ children }) => {
       <SidebarMenu />
       <Layout>
         <Topbar />
-        <Content style={{ margin: '16px' }}>
-          <div style={{ padding: 24, background: '#fff', minHeight: 360 }}>
+        <Content style={{ margin: 16 }}>
+          <div
+            style={{
+              padding: 24,
+              background: '#fff',
+              minHeight: 360,
+              borderRadius: 4,
+              boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+            }}
+          >
             {children}
           </div>
         </Content>

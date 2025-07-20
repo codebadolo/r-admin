@@ -202,15 +202,24 @@ export default function AjouterProduit() {
         });
       }
 
-      for (const fileObj of imageFileList) {
-        const formData = new FormData();
-        formData.append("product", product.id);
-        formData.append("image", fileObj.originFileObj || fileObj);
-        formData.append("is_feature", fileObj.is_feature ? "true" : "false");
-        formData.append("alt_text", fileObj.alt_text || "");
+  // Inside your onFinish or similar submit handler, after product is created
+for (const fileObj of imageFileList) {
+  const formData = new FormData();
 
-        await createProductImage(formData);
-      }
+  formData.append("product", product.id);  // productId of created product
+  // fileObj.originFileObj is the File object provided by AntD Upload
+ formData.append("image", fileObj.originFileObj);
+
+  formData.append("is_feature", fileObj.is_feature ? "true" : "false");
+  formData.append("alt_text", fileObj.alt_text || "");
+
+  try {
+    await createProductImage(formData);
+  } catch (err) {
+    message.error(`Erreur lors de l'upload de l'image ${fileObj.name || ''}`);
+    console.error(err);
+  }
+}
 
       message.success("Produit ajouté avec succès !");
       form.resetFields();
