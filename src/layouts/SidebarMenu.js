@@ -8,7 +8,10 @@ import {
   SettingOutlined,
   ShopOutlined,
   ShoppingCartOutlined,
-  UserOutlined
+  UserOutlined,
+  TagOutlined,
+  MailOutlined,
+  FileOutlined
 } from '@ant-design/icons';
 import { Layout, Menu } from 'antd';
 import { useEffect, useState } from 'react';
@@ -28,23 +31,39 @@ const SidebarMenu = () => {
 
   const toggleCollapsed = () => setCollapsed(!collapsed);
 
+  // hasRole check multiple roles
+  const hasRole = (...roles) => {
+    if (!user?.user_roles) return false;
+    return roles.some(roleName =>
+      user.user_roles.some(ur => ur.role.name === roleName)
+    );
+  };
+
   useEffect(() => {
-    if (location.pathname.startsWith('/products')) setOpenKeys(['products']);
-    else if (location.pathname.startsWith('/specifications')) setOpenKeys(['specifications']);
+    // Ouvrir par défaut selon la section active
+    const path = location.pathname;
+    if (path.startsWith('/products')) setOpenKeys(['products']);
+    else if (path.startsWith('/specifications')) setOpenKeys(['specifications']);
     else if (
-      location.pathname.startsWith('/users') ||
-      location.pathname.startsWith('/roles') ||
-      location.pathname.startsWith('/permissions')
+      path.startsWith('/users') ||
+      path.startsWith('/roles') ||
+      path.startsWith('/permissions') ||
+      path.startsWith('/profile') ||
+      path.startsWith('/connections')
     )
       setOpenKeys(['users']);
+    else if (path.startsWith('/orders') || path.startsWith('/payments') || path.startsWith('/delivery'))
+      setOpenKeys(['logistics']);
+    else if (path.startsWith('/promotions') || path.startsWith('/coupons'))
+      setOpenKeys(['promotions']);
+    else if (path.startsWith('/marketing') || path.startsWith('/newsletters'))
+      setOpenKeys(['marketing']);
     else setOpenKeys([]);
   }, [location.pathname]);
 
   const onOpenChange = keys => {
     setOpenKeys(keys);
   };
-
-  const hasRole = roleName => user?.roles?.includes(roleName);
 
   return (
     <Sider collapsible collapsed={collapsed} trigger={null} width={260} style={{ minHeight: '100vh' }}>
@@ -60,7 +79,13 @@ const SidebarMenu = () => {
             <span style={{ marginLeft: 8, fontWeight: 'bold', color: 'white', userSelect: 'none' }}>ROH Store</span>
           </>
         )}
-        <div onClick={e => { e.stopPropagation(); toggleCollapsed(); }} style={{ fontSize: 18, cursor: 'pointer', color: 'white' }}>
+        <div
+          onClick={e => {
+            e.stopPropagation();
+            toggleCollapsed();
+          }}
+          style={{ fontSize: 18, cursor: 'pointer', color: 'white' }}
+        >
           {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
         </div>
       </div>
@@ -78,50 +103,64 @@ const SidebarMenu = () => {
           Tableau de bord
         </Menu.Item>
 
-        {(hasRole('Admin') || hasRole('Gestionnaire Produit')) && (
+        {(hasRole('SuperAdmin', 'Gestionnaire Produit', 'Admin')) && (
           <SubMenu key="products" icon={<ShopOutlined />} title="Produits">
             <Menu.Item key="/products/catalogue">Catalogue</Menu.Item>
-            {(hasRole('Admin') || hasRole('Gestionnaire Produit')) && <Menu.Item key="/products/brands">Infos</Menu.Item>}
-          
-         
-          
+            {(hasRole('SuperAdmin', 'Gestionnaire Produit', 'Admin')) && <Menu.Item key="/products/brands">Marques</Menu.Item>}
+            <Menu.Item key="/products/categories">Catégories</Menu.Item>
+            <Menu.Item key="/products/types">Types</Menu.Item>
+            <Menu.Item key="/products/attributes">Attributs</Menu.Item>
+            <Menu.Item key="/products/media">Documents & Images</Menu.Item>
             <Menu.Item key="/products/stock">Stock</Menu.Item>
+            {(hasRole('SuperAdmin', 'Gestionnaire Produit')) && (
+              <>
+                <Menu.Item key="/products/create">Ajouter produit</Menu.Item>
+                <Menu.Item key="/products/edit/:id" style={{ display: 'none' }} />
+              </>
+            )}
           </SubMenu>
         )}
 
-     
-
-        {hasRole('Admin') && (
-          <SubMenu key="users" icon={<UserOutlined />} title="Utilisateurs & Rôles">
-            <Menu.Item key="/users">Utilisateurs</Menu.Item>
-            <Menu.Item key="/roles">Rôles</Menu.Item>
+        {(hasRole('SuperAdmin', 'Commercial', 'Client')) && (
+          <SubMenu key="users" icon={<UserOutlined />} title="Utilisateurs & Profils">
+            <Menu.Item key="/users">Liste utilisateurs</Menu.Item>
+            <Menu.Item key="/roles">Gestion rôles</Menu.Item>
             <Menu.Item key="/permissions">Permissions</Menu.Item>
+            <Menu.Item key="/profile">Mon profil</Menu.Item>
+            <Menu.Item key="/connections">Historique connexions</Menu.Item>
           </SubMenu>
         )}
 
-        {(hasRole('Admin') || hasRole('Gestionnaire Produit')) && (
-          <>
-            <Menu.Item key="/orders" icon={<ShoppingCartOutlined />}>
-              Commandes
-            </Menu.Item>
-
-            <Menu.Item key="/payments" icon={<CreditCardOutlined />}>
-              Paiements
-            </Menu.Item>
-
-            <Menu.Item key="/delivery" icon={<CarOutlined />}>
-              Livraison
-            </Menu.Item>
-
-            <Menu.Item key="/reports" icon={<BarChartOutlined />}>
-              Statistiques & Rapports
-            </Menu.Item>
-
-            <Menu.Item key="/settings" icon={<SettingOutlined />}>
-              Paramètres
-            </Menu.Item>
-          </>
+        {(hasRole('SuperAdmin', 'OperateurLogistique', 'GestionnaireProduit')) && (
+          <SubMenu key="logistics" icon={<CarOutlined />} title="Logistique & Commandes">
+            <Menu.Item key="/orders">Commandes</Menu.Item>
+            <Menu.Item key="/payments">Paiements</Menu.Item>
+            <Menu.Item key="/delivery">Livraison</Menu.Item>
+          </SubMenu>
         )}
+
+        {(hasRole('SuperAdmin', 'ResponsableMarketing')) && (
+          <SubMenu key="marketing" icon={<MailOutlined />} title="Marketing & Promotions">
+            <Menu.Item key="/promotions">Promotions</Menu.Item>
+            <Menu.Item key="/coupons">Coupons</Menu.Item>
+            <Menu.Item key="/campaigns">Campagnes marketing</Menu.Item>
+            <Menu.Item key="/newsletters">Newsletters</Menu.Item>
+            <Menu.Item key="/banners">Bannières marketing</Menu.Item>
+          </SubMenu>
+        )}
+
+        {(hasRole('SuperAdmin', 'ResponsableMarketing', 'GestionnaireProduit')) && (
+          <Menu.Item key="/reports" icon={<BarChartOutlined />}>
+            Statistiques & Rapports
+          </Menu.Item>
+        )}
+
+        {(hasRole('SuperAdmin', 'Admin')) && (
+          <Menu.Item key="/settings" icon={<SettingOutlined />}>
+            Paramètres
+          </Menu.Item>
+        )}
+
       </Menu>
     </Sider>
   );

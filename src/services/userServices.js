@@ -1,54 +1,34 @@
-// src/services/userServices.js
-import axios from "axios";
+import api from './api';
 
-const API_BASE_URL = "http://127.0.0.1:8000/api/users/users/";
-const API_ROLE_URL = "http://127.0.0.1:8000/api/users/user-roles/";
+const USERS_URL = "/users/users/";  // si route correctement exposée ainsi
 
-// Ajout d’un header Authorization classique :
-// Assurez-vous que le token est stocké correctement (ex: localStorage)
-function getAuthHeaders() {
-  const token = localStorage.getItem("token");
-  return token ? { Authorization: `Token ${token}` } : {};
-}
+const USER_ROLES_URL = 'users/user-roles/';
+const PERMISSIONS_URL = '/permissions/';
 
-// Users
-export const fetchUsers = () =>
-  axios.get(API_BASE_URL, { headers: getAuthHeaders() });
+export const fetchUsers = () => api.get('/users/users/');
 
-export const fetchUser = (id) =>
-  axios.get(`${API_BASE_URL}${id}/`, { headers: getAuthHeaders() });
 
-export const createUser = (data) =>
-  axios.post(API_BASE_URL, data, { headers: getAuthHeaders() });
+export const fetchUser = id => api.get(`${USERS_URL}${id}/`);
 
-export const updateUser = (id, data) =>
-  axios.put(`${API_BASE_URL}${id}/`, data, { headers: getAuthHeaders() });
+export const createUser = data => api.post(USERS_URL, data);
 
-export const deleteUser = (id) =>
-  axios.delete(`${API_BASE_URL}${id}/`, { headers: getAuthHeaders() });
+export const updateUser = (id, data) => api.put(`${USERS_URL}${id}/`, data);
 
-export const fetchPermissions = () =>
-  axios.get("/api/users/permissions/", { headers: getAuthHeaders() });
+export const deleteUser = id => api.delete(`${USERS_URL}${id}/`);
+
+export const fetchPermissions = () => api.get(PERMISSIONS_URL);
 
 export const updateUserPassword = (id, data) =>
-  axios.post(`/api/users/users/${id}/change-password/`, data, { headers: getAuthHeaders() });
-// Roles
-export const fetchRoles = () =>
-  axios.get(API_ROLE_URL, { headers: getAuthHeaders() });
+  api.post(`${USERS_URL}${id}/change-password/`, data);
 
-export const fetchUserRoles = (userId) =>
-  axios.get(`/api/users/user-roles/${userId}/`, { headers: getAuthHeaders() });
+export const fetchRoles = () => api.get(USER_ROLES_URL);
 
-export const fetchRole = (id) =>
-  axios.get(`${API_ROLE_URL}${id}/`, { headers: getAuthHeaders() });
+export const fetchUserRoles = userId => api.get(`${USER_ROLES_URL}${userId}/`);
 
-export const createRole = (data) =>
-  axios.post(API_ROLE_URL, data, { headers: getAuthHeaders() });
+export const fetchRole = id => api.get(`${USER_ROLES_URL}${id}/`);
 
-export const updateRole = (id, data) =>
-  axios.put(`${API_ROLE_URL}${id}/`, data, { headers: getAuthHeaders() });
+export const createRole = data => api.post(USER_ROLES_URL, data);
 
-export const deleteRole = (id) =>
-  axios.delete(`${API_ROLE_URL}${id}/`, { headers: getAuthHeaders() });
+export const updateRole = (id, data) => api.put(`${USER_ROLES_URL}${id}/`, data);
 
-// Vous pouvez ajouter ici d’autres services comme UserRole, Permission, etc.
+export const deleteRole = id => api.delete(`${USER_ROLES_URL}${id}/`);

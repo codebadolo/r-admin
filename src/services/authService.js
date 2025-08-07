@@ -21,4 +21,3 @@ export const logout = async (token) => {
   });
   return response.data;
 };
-

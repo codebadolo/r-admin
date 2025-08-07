@@ -7,4 +7,4 @@ const config = {
 };
 
 export const fetchRoles = () =>
-  axios.get(`http://127.0.0.1:8000/api/users/roles/`, config).then(res => res.data);
+  axios.get(`http://127.0.0.1:8000/api/users/user-roles/`, config).then(res => res.data);
