@@ -39,6 +39,7 @@ import UsersPage from './pages/users/UsersPage';
 import DeliveryPage from './pages/orders/DeliveryPage';
 import OrdersPage from './pages/orders/OrdersPage';
 import PaymentsPage from './pages/stock/PaymentsPage';
+import AddressesPage from './pages/addresses/AddressesPage';
 
 import ProductDetailPage from './pages/products/ProductDetailPage';
 import ReportsPage from './pages/marketing/ReportsPage';
@@ -92,6 +93,8 @@ function App() {
     <Route path="/profile" element={<ProfilePage />} />
         <Route path="/profile/edit" element={<ProfileEditPage />} />
            <Route path="/profile/change-password" element={<ChangePasswordPage />} />
+           <Route path="/addresses" element={<AddressesPage />} />
+
                       {/* Autres modules */}
                       <Route path="/orders" element={<OrdersPage />} />
                       <Route path="/payments" element={<PaymentsPage />} />

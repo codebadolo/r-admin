@@ -17,6 +17,7 @@ import {
   Modal,
   Row,
   Space,
+  Badge,
   Spin,
   Statistic,
   Table,
@@ -37,7 +38,12 @@ export default function UsersPage() {
   const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState("");
   const navigate = useNavigate();
+const [pagination, setPagination] = useState({ current: 1, pageSize: 14 });
 
+const handleTableChange = (pagination) => {
+  setPagination(pagination);
+  // Vous pouvez aussi gérer les filtres et tris ici si besoin
+};
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
@@ -119,8 +125,10 @@ export default function UsersPage() {
       title: "Email",
       dataIndex: "email",
       key: "email",
+      width: 350,
       sorter: (a, b) => a.email.localeCompare(b.email),
     },
+     
     {
       title: "Téléphone",
       key: "telephone",
@@ -174,6 +182,19 @@ export default function UsersPage() {
           "-"
         );
       },
+    },
+      {
+      title: "Statut",
+      dataIndex: "is_active",
+      key: "is_active",
+      filters: [
+        { text: "Actif", value: true },
+        { text: "Inactif", value: false },
+      ],
+      onFilter: (value, record) => record.is_active === value,
+      render: (active) => (
+        <Badge color={active ? "green" : "red"} text={active ? "Actif" : "Inactif"} />
+      )
     },
     // Actions
     {
@@ -286,10 +307,13 @@ export default function UsersPage() {
         <Spin tip="Chargement utilisateurs..." style={{ display: "block", textAlign: "center", padding: 40 }} />
       ) : (
         <Table
+          className="my-compact-table"
           rowKey="id"
+             size="small"
           columns={columns}
           dataSource={users}
-          pagination={{ pageSize: 10, showSizeChanger: true }}
+        pagination={pagination}
+        onChange={handleTableChange}
           scroll={{ x: 1000 }}
         />
       )}

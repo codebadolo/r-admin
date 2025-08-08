@@ -4,6 +4,8 @@ import {
   PlusOutlined,
   UsergroupAddOutlined,
 } from "@ant-design/icons";
+import { Breadcrumb } from "antd";
+import { HomeOutlined } from "@ant-design/icons";
 import {
   Button,
   Card,
@@ -146,9 +148,13 @@ export default function RolesPage() {
 
   return (
     <div style={{ maxWidth: 1500, margin: "20px auto", padding: 20 }}>
-      <Title level={2} style={{ textAlign: "center" }}>
-        Gestion des rôles
-      </Title>
+   <Breadcrumb style={{ marginBottom: 16 }}>
+        <Breadcrumb.Item href="/">
+          <HomeOutlined />
+        </Breadcrumb.Item>
+        <Breadcrumb.Item>Gestion des rôles</Breadcrumb.Item>
+      </Breadcrumb>
+
 
       <Row gutter={16} style={{ marginBottom: 24 }}>
         <Col xs={24} sm={12} md={6}>
@@ -214,7 +220,7 @@ export default function RolesPage() {
       {loading ? (
         <Spin tip="Chargement des rôles..." />
       ) : (
-        <Table columns={columns} dataSource={roles} rowKey="id" pagination={{ pageSize: 10 }} />
+        <Table    className="my-compact-table" size="small" columns={columns}  dataSource={roles} rowKey="id" pagination={{ pageSize: 10 }} />
       )}
 
       <RoleModalForm

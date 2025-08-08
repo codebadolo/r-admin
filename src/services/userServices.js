@@ -54,3 +54,13 @@ export const fetchUserTVANumbers = (userId) =>
 export function changePassword(data) {
   return api.post("/users/password/change/", data);
 }
+
+const BASE_ADRESSES_URL = '/users/adresses/';
+
+export const fetchAddresses = () => api.get(BASE_ADRESSES_URL);
+
+export const createAddress = (data) => api.post(BASE_ADRESSES_URL, data);
+
+export const updateAddress = (id, data) => api.put(`${BASE_ADRESSES_URL}${id}/`, data);
+
+export const deleteAddress = (id) => api.delete(`${BASE_ADRESSES_URL}${id}/`);

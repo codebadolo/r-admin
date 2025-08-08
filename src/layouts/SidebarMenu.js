@@ -127,6 +127,8 @@ const SidebarMenu = () => {
             <Menu.Item key="/roles">Gestion rôles</Menu.Item>
             <Menu.Item key="/permissions">Permissions</Menu.Item>
             <Menu.Item key="/profile">Mon profil</Menu.Item>
+            <Menu.Item key="/addresses">Gestion des adresses</Menu.Item>
+
             <Menu.Item key="/connections">Historique connexions</Menu.Item>
           </SubMenu>
         )}

@@ -4,176 +4,151 @@ import {
   Layout,
   Breadcrumb,
   Typography,
-  Form,
-  Input,
-  Checkbox,
-  Button,
   Spin,
   Alert,
-  List,
+  Form,
+  Input,
+  Button,
+  Switch,
   Row,
   Col,
   Space,
   Select,
-  Tooltip,
-  Collapse,
-  Divider,
-  message
+  message,
 } from "antd";
-import {
-  HomeOutlined,
-  LockOutlined,
-  UserOutlined,
-} from "@ant-design/icons";
-import {
-  fetchUser,
-  updateUser,
-  fetchRoles,
-  updateUserPassword,
-  fetchUserTVANumbers,
-} from "../../services/userServices";
+import { HomeOutlined, PlusOutlined, MinusCircleOutlined } from "@ant-design/icons";
+import api from "../../services/api";
 
 const { Title } = Typography;
 const { Content } = Layout;
 const { Option } = Select;
-const { Panel } = Collapse;
+
+const TYPE_CLIENT_CHOICES = [
+  { value: 'particulier', label: 'Particulier' },
+  { value: 'entreprise', label: 'Entreprise' },
+];
+
+const UTILISATION_CHOICES = [
+  { value: 'facturation', label: 'Facturation' },
+  { value: 'livraison', label: 'Livraison' },
+];
 
 export default function UserUpdate() {
   const { id } = useParams();
   const navigate = useNavigate();
+
   const [form] = Form.useForm();
-  const [pwdForm] = Form.useForm();
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [pwdSaving, setPwdSaving] = useState(false);
   const [error, setError] = useState(null);
-  const [roles, setRoles] = useState([]);
-  const [userTVANumbers, setUserTVANumbers] = useState([]);
-  const [initialEmail, setInitialEmail] = useState("");
 
-  // Chargement des données utilisateur, rôles et numéros TVA
+  // For select options
+  const [rolesOptions, setRolesOptions] = useState([]);
+  const [numeroTVAOptions, setNumeroTVAOptions] = useState([]);
+  const [paysOptions, setPaysOptions] = useState([]);
+  const [formeJuridiqueOptions, setFormeJuridiqueOptions] = useState([]);
+  const [regimeFiscalOptions, setRegimeFiscalOptions] = useState([]);
+  const [divisionFiscaleOptions, setDivisionFiscaleOptions] = useState([]);
+
   useEffect(() => {
-    async function load() {
-      setLoading(true);
-      setError(null);
+    // Charger les listes d’options nécessaires pour les selects
+    async function loadOptions() {
       try {
-        const [rolesResp, userResp, tvaResp] = await Promise.all([
-          fetchRoles(),
-          fetchUser(id),
-          fetchUserTVANumbers(id),
-        ]);
-
-        setRoles(rolesResp.data || []);
-        const userData = userResp.data || {};
-        setUserTVANumbers(tvaResp.data || []);
-
-        setInitialEmail(userData.email);
-
-        // Préparation des valeurs dans le formulaire, en tenant compte des clés correctes (singulier)
-        form.setFieldsValue({
-          email: userData.email,
-          type_client: userData.type_client,
-          telephone: userData.telephone,
-          accepte_cgv: userData.accepte_cgv,
-          accepte_facture_electronique: userData.accepte_facture_electronique,
-          profils_entreprise: userData.profil_entreprise || {},
-          profils_particulier: userData.profil_particulier || {},
-          roles: (userData.user_roles || [])
-            .map((ur) => ur.role?.id)
-            .filter(Boolean),
-        });
+        const [rolesRes, numeroTVARes, paysRes, formeJuridiqueRes, regimeFiscalRes, divisionFiscaleRes] =
+          await Promise.all([
+            api.get("/users/roles/"),
+            api.get("/users/usertvanumbers/"),
+            api.get("/users/pays/"),
+            api.get("/users/formes-juridiques/"),
+            api.get("/users/regimefiscaux/"),
+            api.get("/users/divisionfiscales/"),
+          ]);
+        setRolesOptions(rolesRes.data);
+        setNumeroTVAOptions(numeroTVARes.data);
+        setPaysOptions(paysRes.data);
+        setFormeJuridiqueOptions(formeJuridiqueRes.data);
+        setRegimeFiscalOptions(regimeFiscalRes.data);
+        setDivisionFiscaleOptions(divisionFiscaleRes.data);
       } catch (err) {
-        setError(
-          (err.response && err.response.data && JSON.stringify(err.response.data)) ||
-            err.message ||
-            "Erreur lors du chargement"
-        );
-      } finally {
-        setLoading(false);
+        console.error("Erreur chargement options:", err);
       }
     }
-    load();
+    loadOptions();
+  }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    api.get(`/users/users/${id}/`)
+      .then(({ data: user }) => {
+        // Prérmpli le formulaire selon la structure
+        // On mappe adresses pour s’assurer des champs ForeignKey en ID
+        const adressesFormatted = (user.adresses && user.adresses.length > 0)
+          ? user.adresses.map((a) => ({
+              ...a,
+              numero_tva_id: a.numero_tva ? a.numero_tva.id || null : null,
+              pays_id: a.pays ? a.pays.id || null : null,
+              forme_juridique_id: a.forme_juridique ? a.forme_juridique.id || null : null,
+              regime_fiscal_id: a.regime_fiscal ? a.regime_fiscal.id || null : null,
+              division_fiscale_id: a.division_fiscale ? a.division_fiscale.id || null : null,
+            }))
+          : [{}]; // Au moins une adresse vide pour le formulaire
+
+        form.setFieldsValue({
+          email: user.email,
+          type_client: user.type_client,
+          accepte_facture_electronique: user.accepte_facture_electronique,
+          accepte_cgv: user.accepte_cgv,
+          telephone: user.telephone,
+          is_active: user.is_active,
+          is_staff: user.is_staff,
+          password: "", // Pas de valeur préremplie pour la sécurité
+
+          roles: user.roles || [],
+          adresses: adressesFormatted,
+        });
+        setError(null);
+      })
+      .catch((err) => {
+        setError(err.message || "Erreur lors du chargement des données");
+      })
+      .finally(() => setLoading(false));
   }, [id, form]);
 
-  // Soumission de la mise à jour utilisateur
   const onFinish = async (values) => {
     setSaving(true);
-    setError(null);
+
+    // Nettoyer password vide pour ne pas l’envoyer
+    const payload = {
+      ...values,
+      password: values.password ? values.password : undefined,
+    };
+
     try {
-      const payload = {
-        ...values,
-        email: initialEmail, // Remplacez email (non modifiable)
-        roles: values.roles || [],
-      };
-      await updateUser(id, payload);
+      await api.put(`/users/users/${id}/`, payload);
       message.success("Utilisateur mis à jour avec succès");
-      navigate("/users");
+      navigate(`/users/${id}`);
     } catch (err) {
-      setError(
-        (err.response && err.response.data && JSON.stringify(err.response.data)) ||
-          err.message ||
-          "Erreur lors de la sauvegarde"
-      );
+      console.error(err);
+      message.error(err.response?.data?.detail || "Erreur lors de la sauvegarde");
     } finally {
       setSaving(false);
     }
   };
 
-  // Soumission changement mot de passe
-  const onSubmitPassword = async (values) => {
-    setPwdSaving(true);
-    setError(null);
-    if (values.new_password !== values.confirm_password) {
-      setError("Les mots de passe ne correspondent pas.");
-      setPwdSaving(false);
-      return;
-    }
-    try {
-      await updateUserPassword(id, {
-        old_password: values.old_password,
-        new_password: values.new_password,
-        confirm_password: values.confirm_password,
-      });
-      message.success("Mot de passe modifié avec succès");
-      pwdForm.resetFields();
-    } catch (err) {
-      setError(
-        (err.response && err.response.data && JSON.stringify(err.response.data)) ||
-          err.message ||
-          "Erreur lors du changement de mot de passe"
-      );
-    } finally {
-      setPwdSaving(false);
-    }
-  };
-
   if (loading)
     return (
-      <Spin
-        tip="Chargement en cours..."
-        style={{ display: "block", marginTop: 80, textAlign: "center" }}
-      />
+      <Spin tip="Chargement..." style={{ display: "block", marginTop: 80, textAlign: "center" }} />
     );
 
-  // Vérifications pour affichages conditionnels (profils présents)
-  const profilsEntreprise = form.getFieldValue('profils_entreprise') || {};
-  const profilsParticulier = form.getFieldValue('profils_particulier') || {};
-
-  const hasEntrepriseProfil = Object.keys(profilsEntreprise).length > 0;
-  const hasParticulierProfil = Object.keys(profilsParticulier).length > 0;
+  if (error)
+    return (
+      <Alert type="error" message="Erreur" description={error} showIcon style={{ maxWidth: "100%", margin: "auto" }} />
+    );
 
   return (
-    <Layout style={{ minHeight: "100vh", padding: 24, background: "#fafafa" }}>
-      <Content
-        style={{
-          maxWidth: 1000,
-          margin: "auto",
-          background: "#fff",
-          padding: 32,
-          borderRadius: 8,
-        }}
-      >
+    <Layout style={{ maxWidth: 900, margin: "auto", padding: 24, background: "#fafafa" }}>
+      <Content>
         <Breadcrumb style={{ marginBottom: 24 }}>
           <Breadcrumb.Item>
             <Link to="/">
@@ -183,260 +158,312 @@ export default function UserUpdate() {
           <Breadcrumb.Item>
             <Link to="/users">Utilisateurs</Link>
           </Breadcrumb.Item>
-          <Breadcrumb.Item>Modifier utilisateur #{id}</Breadcrumb.Item>
+          <Breadcrumb.Item>Modification</Breadcrumb.Item>
         </Breadcrumb>
 
-        <Button onClick={() => navigate(-1)} style={{ marginBottom: 24 }}>
-          Retour
-        </Button>
+        <Title level={2} style={{ marginBottom: 24 }}>
+          Modifier un utilisateur
+        </Title>
 
-        {error && (
-          <Alert
-            type="error"
-            message="Erreur"
-            description={error}
-            closable
-            style={{ marginBottom: 24 }}
-            onClose={() => setError(null)}
-          />
-        )}
-
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={onFinish}
-          scrollToFirstError
-          initialValues={{
-            type_client: "particulier",
-            accepte_cgv: false,
-            accepte_facture_electronique: false,
-          }}
-        >
-          <Row gutter={24}>
-            <Col xs={24} md={12}>
-              <Form.Item label="Email">
-                <Input value={initialEmail} disabled prefix={<UserOutlined />} />
-              </Form.Item>
-
+        <Form form={form} layout="vertical" onFinish={onFinish} autoComplete="off">
+          <Row gutter={16}>
+            {/* Champs utilisateur simples */}
+            <Col xs={24} sm={12}>
               <Form.Item
-                label="Type Client"
-                name="type_client"
-                rules={[{ required: true, message: "Veuillez sélectionner un type client" }]}
+                label="Email"
+                name="email"
+                rules={[
+                  { required: true, message: "Veuillez entrer l'adresse email" },
+                  { type: "email", message: "Veuillez entrer une adresse email valide" },
+                ]}
               >
-                <Select>
-                  <Option value="particulier">Particulier</Option>
-                  <Option value="entreprise">Entreprise</Option>
-                </Select>
+                <Input placeholder="email@example.com" />
               </Form.Item>
+            </Col>
 
-              <Form.Item
-                label="Téléphone"
-                name="telephone"
-                rules={[{ required: true, message: "Téléphone requis" }]}
-              >
+            <Col xs={24} sm={12}>
+              <Form.Item label="Type client" name="type_client" rules={[{ required: true }]}>
+                <Select placeholder="Sélectionnez un type client" options={TYPE_CLIENT_CHOICES} />
+              </Form.Item>
+            </Col>
+
+            <Col xs={24} sm={12}>
+              <Form.Item label="Téléphone" name="telephone">
                 <Input placeholder="Téléphone" />
               </Form.Item>
+            </Col>
 
-              <Form.Item
-                name="accepte_facture_electronique"
-                valuePropName="checked"
-                style={{ marginBottom: 0 }}
-              >
-                <Checkbox>Accepte la facture électronique</Checkbox>
+            <Col xs={24} sm={12}>
+              <Form.Item label="Mot de passe" name="password" hasFeedback>
+                <Input.Password placeholder="Laissez vide pour ne pas changer" />
               </Form.Item>
-              <Form.Item name="accepte_cgv" valuePropName="checked" style={{ marginBottom: 20 }}>
-                <Checkbox>Accepte les CGV</Checkbox>
-              </Form.Item>
+            </Col>
 
-              <Form.Item
-                label="Rôles"
-                name="roles"
-                rules={[{ required: true, message: "Veuillez sélectionner au moins un rôle" }]}
-              >
+            <Col xs={24} sm={8}>
+              <Form.Item label="Utilisateur actif" name="is_active" valuePropName="checked">
+                <Switch />
+              </Form.Item>
+            </Col>
+
+            <Col xs={24} sm={8}>
+              <Form.Item label="Staff" name="is_staff" valuePropName="checked">
+                <Switch />
+              </Form.Item>
+            </Col>
+
+            <Col xs={24} sm={8}>
+              <Form.Item label="Accepte facture électronique" name="accepte_facture_electronique" valuePropName="checked">
+                <Switch />
+              </Form.Item>
+            </Col>
+
+            <Col xs={24} sm={12}>
+              <Form.Item label="Accepte CGV" name="accepte_cgv" valuePropName="checked">
+                <Switch />
+              </Form.Item>
+            </Col>
+
+            {/* Rôles en multiselect */}
+            <Col xs={24}>
+              <Form.Item label="Rôles utilisateur" name="roles">
                 <Select
                   mode="multiple"
                   placeholder="Sélectionnez les rôles"
-                  optionFilterProp="children"
-                  showSearch
                   allowClear
-                  filterOption={(input, option) => option.children.toLowerCase().includes(input.toLowerCase())}
+                  optionFilterProp="children"
+                  filterOption={(input, option) =>
+                    option.children.toLowerCase().includes(input.toLowerCase())
+                  }
                 >
-                  {roles.map((r) => (
-                    <Option key={r.id} value={r.id}>
-                      <Tooltip title={r.description || ""}>{r.name}</Tooltip>
+                  {rolesOptions.map(({ id, name }) => (
+                    <Option key={id} value={id}>
+                      {name}
                     </Option>
                   ))}
                 </Select>
               </Form.Item>
             </Col>
 
-            <Col xs={24} md={12}>
-              <Collapse defaultActiveKey={["entreprise"]} bordered={false} ghost>
-                <Panel header="Profil entreprise" key="entreprise" disabled={!hasEntrepriseProfil}>
-                  <Form.Item label="Nom complet" name={["profils_entreprise", "nom_complet"]}>
-                    <Input />
-                  </Form.Item>
-                  <Form.Item label="Téléphone" name={["profils_entreprise", "telephone"]}>
-                    <Input />
-                  </Form.Item>
-                  <Form.Item label="Raison sociale" name={["profils_entreprise", "raison_sociale"]}>
-                    <Input />
-                  </Form.Item>
-                  <Form.Item label="Numéro SIRET" name={["profils_entreprise", "numero_siret"]}>
-                    <Input />
-                  </Form.Item>
-                  <Form.Item label="Numéro TVA" name={["profils_entreprise", "numero_tva"]}>
-                    <Input />
-                  </Form.Item>
-                  <Form.Item label="Adresse société" name={["profils_entreprise", "adresse_societe"]}>
-                    <Input />
-                  </Form.Item>
-                  <Form.Item label="Téléphone supplémentaire" name={["profils_entreprise", "telephone_suppl"]}>
-                    <Input />
-                  </Form.Item>
-                  <Form.Item
-                    name={["profils_entreprise", "livraison_identique_facturation"]}
-                    valuePropName="checked"
-                  >
-                    <Checkbox>Livraison identique à la facturation</Checkbox>
-                  </Form.Item>
-                </Panel>
+            {/* Liste dynamique des adresses */}
+            <Col xs={24}>
+              <Form.List name="adresses">
+                {(fields, { add, remove }) => (
+                  <>
+                    <Title level={4}>Adresses</Title>
+                    {fields.map(({ key, name, ...restField }) => (
+                      <div
+                        key={key}
+                        style={{
+                          border: "1px solid #d9d9d9",
+                          borderRadius: 8,
+                          padding: 16,
+                          marginBottom: 16,
+                          position: "relative",
+                        }}
+                      >
+                        <Space direction="vertical" style={{ width: "100%" }}>
+                          <Row gutter={16}>
+                            <Col xs={24} sm={12}>
+                              <Form.Item
+                                {...restField}
+                                label="Utilisation"
+                                name={[name, "utilisation"]}
+                                rules={[{ required: true, message: "Champ obligatoire" }]}
+                              >
+                                <Select options={UTILISATION_CHOICES} placeholder="Utilisation" />
+                              </Form.Item>
+                            </Col>
 
-                <Panel header="Profil particulier" key="particulier" disabled={!hasParticulierProfil}>
-                  <Form.Item label="Nom complet" name={["profils_particulier", "nom_complet"]}>
-                    <Input />
-                  </Form.Item>
-                  <Form.Item label="Téléphone" name={["profils_particulier", "telephone"]}>
-                    <Input />
-                  </Form.Item>
-                  <Form.Item label="Date de naissance" name={["profils_particulier", "date_naissance"]}>
-                    <Input type="date" />
-                  </Form.Item>
-                  <Form.Item
-                    name={["profils_particulier", "livraison_identique_facturation"]}
-                    valuePropName="checked"
-                  >
-                    <Checkbox>Livraison identique à la facturation</Checkbox>
-                  </Form.Item>
-                </Panel>
-              </Collapse>
+                            <Col xs={24} sm={12}>
+                              <Form.Item
+                                {...restField}
+                                label="Type client"
+                                name={[name, "type_client"]}
+                                rules={[{ required: true, message: "Champ obligatoire" }]}
+                              >
+                                <Select options={TYPE_CLIENT_CHOICES} placeholder="Type client" />
+                              </Form.Item>
+                            </Col>
+
+                            <Col xs={24} sm={24}>
+                              <Form.Item
+                                {...restField}
+                                label="Nom complet"
+                                name={[name, "nom_complet"]}
+                                rules={[{ required: true, message: "Champ obligatoire" }]}
+                              >
+                                <Input placeholder="Nom complet" />
+                              </Form.Item>
+                            </Col>
+
+                            <Col xs={24} sm={12}>
+                              <Form.Item {...restField} label="Téléphone" name={[name, "telephone"]}>
+                                <Input placeholder="Téléphone" />
+                              </Form.Item>
+                            </Col>
+
+                            <Col xs={24} sm={12}>
+                              <Form.Item {...restField} label="Raison sociale" name={[name, "raison_sociale"]}>
+                                <Input placeholder="Raison sociale" />
+                              </Form.Item>
+                            </Col>
+
+                            <Col xs={24} sm={12}>
+                              <Form.Item {...restField} label="Numéro TVA" name={[name, "numero_tva_id"]}>
+                                <Select
+                                  placeholder="Sélectionnez un numéro TVA"
+                                  allowClear
+                                  showSearch
+                                  optionFilterProp="children"
+                                >
+                                  {numeroTVAOptions.map(({ id, numero_tva }) => (
+                                    <Option key={id} value={id}>
+                                      {numero_tva}
+                                    </Option>
+                                  ))}
+                                </Select>
+                              </Form.Item>
+                            </Col>
+
+                            <Col xs={24} sm={12}>
+                              <Form.Item {...restField} label="RCCM" name={[name, "rccm"]}>
+                                <Input placeholder="RCCM" />
+                              </Form.Item>
+                            </Col>
+
+                            <Col xs={24} sm={12}>
+                              <Form.Item {...restField} label="IFU" name={[name, "ifu"]}>
+                                <Input placeholder="IFU" />
+                              </Form.Item>
+                            </Col>
+
+                            <Col xs={24} sm={12}>
+                              <Form.Item {...restField} label="Forme juridique" name={[name, "forme_juridique_id"]}>
+                                <Select placeholder="Sélectionnez la forme juridique" allowClear>
+                                  {formeJuridiqueOptions.map(({ id, nom }) => (
+                                    <Option key={id} value={id}>
+                                      {nom}
+                                    </Option>
+                                  ))}
+                                </Select>
+                              </Form.Item>
+                            </Col>
+
+                            <Col xs={24} sm={12}>
+                              <Form.Item {...restField} label="Régime fiscal" name={[name, "regime_fiscal_id"]}>
+                                <Select placeholder="Sélectionnez le régime fiscal" allowClear>
+                                  {regimeFiscalOptions.map(({ id, nom }) => (
+                                    <Option key={id} value={id}>
+                                      {nom}
+                                    </Option>
+                                  ))}
+                                </Select>
+                              </Form.Item>
+                            </Col>
+
+                            <Col xs={24} sm={12}>
+                              <Form.Item {...restField} label="Division fiscale" name={[name, "division_fiscale_id"]}>
+                                <Select placeholder="Sélectionnez la division fiscale" allowClear>
+                                  {divisionFiscaleOptions.map(({ id, nom }) => (
+                                    <Option key={id} value={id}>
+                                      {nom}
+                                    </Option>
+                                  ))}
+                                </Select>
+                              </Form.Item>
+                            </Col>
+
+                            <Col xs={24} sm={12}>
+                              <Form.Item {...restField} label="Rue" name={[name, "rue"]}>
+                                <Input placeholder="Rue" />
+                              </Form.Item>
+                            </Col>
+
+                            <Col xs={24} sm={12}>
+                              <Form.Item {...restField} label="Numéro" name={[name, "numero"]}>
+                                <Input placeholder="Numéro" />
+                              </Form.Item>
+                            </Col>
+
+                            <Col xs={24} sm={12}>
+                              <Form.Item {...restField} label="Ville" name={[name, "ville"]}>
+                                <Input placeholder="Ville" />
+                              </Form.Item>
+                            </Col>
+
+                            <Col xs={24} sm={12}>
+                              <Form.Item {...restField} label="Code postal" name={[name, "code_postal"]}>
+                                <Input placeholder="Code postal" />
+                              </Form.Item>
+                            </Col>
+
+                            <Col xs={24} sm={12}>
+                              <Form.Item {...restField} label="Pays" name={[name, "pays_id"]}>
+                                <Select
+                                  placeholder="Sélectionnez un pays"
+                                  allowClear
+                                  showSearch
+                                  optionFilterProp="children"
+                                >
+                                  {paysOptions.map(({ id, nom }) => (
+                                    <Option key={id} value={id}>
+                                      {nom}
+                                    </Option>
+                                  ))}
+                                </Select>
+                              </Form.Item>
+                            </Col>
+
+                            <Col xs={24} sm={12}>
+                              <Form.Item
+                                {...restField}
+                                label="Livraison identique facturation"
+                                name={[name, "livraison_identique_facturation"]}
+                                valuePropName="checked"
+                              >
+                                <Switch />
+                              </Form.Item>
+                            </Col>
+                          </Row>
+                          <Button
+                            type="link"
+                            danger
+                            style={{ position: "absolute", top: 8, right: 8 }}
+                            onClick={() => remove(name)}
+                          >
+                            Supprimer cette adresse
+                          </Button>
+                        </Space>
+                      </div>
+                    ))}
+
+                    <Form.Item>
+                      <Button
+                        type="dashed"
+                        onClick={() => add()}
+                        block
+                        icon={<PlusOutlined />}
+                      >
+                        Ajouter une adresse
+                      </Button>
+                    </Form.Item>
+                  </>
+                )}
+              </Form.List>
+            </Col>
+
+            {/* Boutons */}
+            <Col xs={24}>
+              <Form.Item>
+                <Space>
+                  <Button type="primary" htmlType="submit" loading={saving}>
+                    Enregistrer
+                  </Button>
+                  <Button onClick={() => navigate(`/users/${id}`)}>Annuler</Button>
+                </Space>
+              </Form.Item>
             </Col>
           </Row>
-
-          <Divider orientation="left" style={{ marginTop: 40 }}>
-            Numéros TVA validés
-          </Divider>
-
-          {userTVANumbers.length === 0 ? (
-            <Alert message="Aucun numéro TVA associé." type="info" />
-          ) : (
-            <List
-              bordered
-              dataSource={userTVANumbers}
-              split={true}
-              itemLayout="vertical"
-              renderItem={(item) => (
-                <List.Item key={item.id}>
-                  <Space direction="vertical" style={{ width: "100%" }}>
-                    <Typography.Text strong>{item.numero_tva}</Typography.Text> ({item.pays}) - Ajouté le{" "}
-                    {new Date(item.date_ajout).toLocaleDateString()}
-                  </Space>
-                </List.Item>
-              )}
-              style={{ marginBottom: 40 }}
-            />
-          )}
-
-          <Space>
-            <Button type="primary" htmlType="submit" loading={saving}>
-              Enregistrer
-            </Button>
-            <Button onClick={() => navigate(-1)}>Annuler</Button>
-          </Space>
-        </Form>
-
-        <Divider orientation="left" style={{ marginTop: 60 }}>
-          Gestion du mot de passe
-        </Divider>
-
-        {/* Formulaire changement mot de passe */}
-        <Form
-          form={pwdForm}
-          layout="vertical"
-          onFinish={async (values) => {
-            setError(null);
-            setPwdSaving(true);
-            if (values.new_password !== values.confirm_password) {
-              setError("Les mots de passe ne correspondent pas.");
-              setPwdSaving(false);
-              return;
-            }
-            try {
-              await updateUserPassword(id, {
-                old_password: values.old_password,
-                new_password: values.new_password,
-                confirm_password: values.confirm_password,
-              });
-              message.success("Mot de passe modifié avec succès");
-              pwdForm.resetFields();
-            } catch (err) {
-              setError(
-                (err.response && err.response.data && JSON.stringify(err.response.data)) ||
-                  err.message ||
-                  "Erreur lors du changement de mot de passe"
-              );
-            } finally {
-              setPwdSaving(false);
-            }
-          }}
-          style={{ maxWidth: 400 }}
-        >
-          <Form.Item
-            label="Mot de passe actuel"
-            name="old_password"
-            rules={[{ required: true, message: "Mot de passe actuel requis" }]}
-            hasFeedback
-          >
-            <Input.Password prefix={<LockOutlined />} />
-          </Form.Item>
-          <Form.Item
-            label="Nouveau mot de passe"
-            name="new_password"
-            rules={[
-              { required: true, message: "Nouveau mot de passe requis" },
-              { min: 6, message: "Le mot de passe doit contenir au moins 6 caractères" },
-            ]}
-            hasFeedback
-          >
-            <Input.Password prefix={<LockOutlined />} />
-          </Form.Item>
-          <Form.Item
-            label="Confirmer le nouveau mot de passe"
-            name="confirm_password"
-            dependencies={["new_password"]}
-            hasFeedback
-            rules={[
-              { required: true, message: "Confirmez le mot de passe" },
-              ({ getFieldValue }) => ({
-                validator(_, value) {
-                  if (!value || getFieldValue("new_password") === value) {
-                    return Promise.resolve();
-                  }
-                  return Promise.reject(new Error("Les mots de passe ne correspondent pas."));
-                },
-              }),
-            ]}
-          >
-            <Input.Password prefix={<LockOutlined />} />
-          </Form.Item>
-          <Form.Item>
-            <Space>
-              <Button type="primary" htmlType="submit" loading={pwdSaving}>
-                Modifier le mot de passe
-              </Button>
-              <Button onClick={() => pwdForm.resetFields()}>Réinitialiser</Button>
-            </Space>
-          </Form.Item>
         </Form>
       </Content>
     </Layout>
