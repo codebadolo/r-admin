@@ -16,6 +16,7 @@ import LoginPage from './pages/auth/LoginPage';
 import ProductEditPage from './pages/products/ProductEditPage';
 import UserDetail from './pages/users/UserDetail';
 import UserUpdate from './pages/users/UserUpdate';
+import UserAdd from "./pages/users/UserAdd";
 import AttributesPage from './pages/attributes/AttributesPage';
 import BrandsPage from './pages/brands/BrandsPage';
 import CataloguePage from './pages/products/CataloguePage';
@@ -23,7 +24,8 @@ import CategoriesPage from './pages/categories/CategoriesPage';
 import MediaPage from './pages/products/ProduitMedia';   // si MediaPage déplacé sous products
 import ProductTypesPage from './pages/products/ProductTypesPage';
 import ProfilePage from './pages/users/ProfilePage'; // ou autre dossier si déplacé
-
+import ProfileEditPage from './pages/users/ProfileEditPage';
+import ChangePasswordPage from './pages/users/ChangePasswordPage'
 import StockPage from './pages/stock/StockPage'; // déplacer selon où tu as mis StockPage
 import VariantsPage from './pages/products/VariantsPage';
 
@@ -84,9 +86,12 @@ function App() {
                       <Route path="/users" element={<UsersPage />} />
                       <Route path="/users/:id" element={<UserDetail />} />
                        <Route path="/users/edit/:id" element={<UserUpdate />} />
+                        <Route path="/users/create" element={<UserAdd />} />
                       <Route path="/roles" element={<RolesPage />} />
                       <Route path="/permissions" element={<PermissionsPage />} />
     <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/profile/edit" element={<ProfileEditPage />} />
+           <Route path="/profile/change-password" element={<ChangePasswordPage />} />
                       {/* Autres modules */}
                       <Route path="/orders" element={<OrdersPage />} />
                       <Route path="/payments" element={<PaymentsPage />} />

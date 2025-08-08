@@ -9,7 +9,6 @@ import {
   UserOutlined,
 } from "@ant-design/icons";
 import {
-  Badge,
   Button,
   Card,
   Col,
@@ -29,7 +28,7 @@ import { useNavigate } from "react-router-dom";
 import {
   fetchUsers,
   deleteUser,
-} from "../../services/userServices"; // Ajustez le chemin selon votre projet
+} from "../../services/userServices";
 
 const { Search } = Input;
 
@@ -37,29 +36,26 @@ export default function UsersPage() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchText, setSearchText] = useState("");
-
   const navigate = useNavigate();
 
-  // Chargement des utilisateurs via service
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetchUsers();
       const data = response.data;
-
       const lowerSearch = searchText.toLowerCase();
 
       const filtered = searchText.trim() === ""
         ? data
-        : data.filter((user) => {
-            const roles = user.user_roles?.map((ur) => ur.role?.name) || [];
+        : data.filter(user => {
+            const roles = user.user_roles?.map(ur => ur.role?.name) || [];
             return (
-              user.email.toLowerCase().includes(lowerSearch) ||
-              user.first_name.toLowerCase().includes(lowerSearch) ||
-              user.last_name.toLowerCase().includes(lowerSearch) ||
-              (user.telephone?.toLowerCase().includes(lowerSearch) || false) ||
-              (user.type_client?.toLowerCase().includes(lowerSearch) || false) ||
-              roles.some((r) => r.toLowerCase().includes(lowerSearch))
+              user.email?.toLowerCase().includes(lowerSearch) ||
+              user.first_name?.toLowerCase().includes(lowerSearch) ||
+              user.last_name?.toLowerCase().includes(lowerSearch) ||
+              (user.numero?.toLowerCase() || "").includes(lowerSearch) ||
+              user.type_client?.toLowerCase().includes(lowerSearch) ||
+              roles.some(r => r.toLowerCase().includes(lowerSearch))
             );
           });
 
@@ -76,20 +72,17 @@ export default function UsersPage() {
     loadData();
   }, [loadData]);
 
-  // Statistiques
   const totalUsers = users.length;
-  const activeUsers = users.filter((u) => u.is_active).length;
+  const activeUsers = users.filter(u => u.is_active).length;
   const inactiveUsers = totalUsers - activeUsers;
-
   const rolesSet = new Set();
-  users.forEach((u) => {
-    (u.user_roles || []).forEach((ur) => {
+  users.forEach(u => {
+    (u.user_roles || []).forEach(ur => {
       if (ur.role?.name) rolesSet.add(ur.role.name);
     });
   });
   const totalRoles = rolesSet.size;
 
-  // Suppression utilisateur avec confirmation
   const handleDelete = (id) => {
     Modal.confirm({
       title: "Confirmer la suppression",
@@ -105,31 +98,49 @@ export default function UsersPage() {
           message.error("Erreur lors de la suppression");
           console.error(error);
         }
-      },
+      }
     });
   };
 
-  // Navigation vers la page d'ajout utilisateur
   const handleAdd = () => {
-    navigate('/users/create');  // À créer si besoin
+    navigate('/users/create');
   };
 
-  // Navigation vers la page d'édition utilisateur
   const handleEdit = (user) => {
     navigate(`/users/edit/${user.id}`);
   };
 
-  // Navigation vers la page de détail utilisateur
   const showDetails = (user) => {
     navigate(`/users/${user.id}`);
   };
 
-  // Colonnes tableau
   const columns = [
-    { title: "Email", dataIndex: "email", key: "email", sorter: (a, b) => a.email.localeCompare(b.email) },
-    { title: "Prénom", dataIndex: "first_name", key: "first_name", sorter: (a, b) => a.first_name.localeCompare(b.first_name) },
-    { title: "Nom", dataIndex: "last_name", key: "last_name", sorter: (a, b) => a.last_name.localeCompare(b.last_name) },
-    { title: "Téléphone", dataIndex: "telephone", key: "telephone" },
+    {
+      title: "Email",
+      dataIndex: "email",
+      key: "email",
+      sorter: (a, b) => a.email.localeCompare(b.email),
+    },
+    {
+      title: "Téléphone",
+      key: "telephone",
+      width: '150px',
+      render: (_, record) => {
+        const { type_client, telephone, adresses } = record;
+
+        if (Array.isArray(adresses) && adresses.length > 0) {
+          if (type_client === "particulier") {
+            const adresseParticulier = adresses.find(a => a.type_client === "particulier");
+            return adresseParticulier?.telephone || telephone || "-";
+          } else if (type_client === "entreprise") {
+            const adresseEntreprise = adresses.find(a => a.type_client === "entreprise" && a.utilisation === "facturation")
+              || adresses.find(a => a.type_client === "entreprise");
+            return adresseEntreprise?.telephone || telephone || "-";
+          }
+        }
+        return telephone || "-";
+      },
+    },
     {
       title: "Type Client",
       dataIndex: "type_client",
@@ -139,27 +150,14 @@ export default function UsersPage() {
         { text: "Entreprise", value: "entreprise" },
       ],
       onFilter: (value, record) => record.type_client === value,
-      render: (type) => (type ? type.charAt(0).toUpperCase() + type.slice(1) : "-")
-    },
-    {
-      title: "Statut",
-      dataIndex: "is_active",
-      key: "is_active",
-      filters: [
-        { text: "Actif", value: true },
-        { text: "Inactif", value: false },
-      ],
-      onFilter: (value, record) => record.is_active === value,
-      render: (active) => (
-        <Badge color={active ? "green" : "red"} text={active ? "Actif" : "Inactif"} />
-      )
+      render: (type) => type ? type.charAt(0).toUpperCase() + type.slice(1) : "-",
     },
     {
       title: "Date d'inscription",
       dataIndex: "date_joined",
       key: "date_joined",
       sorter: (a, b) => new Date(a.date_joined) - new Date(b.date_joined),
-      render: (date) => (date ? new Date(date).toLocaleDateString() : "-")
+      render: (date) => date ? new Date(date).toLocaleDateString() : "-",
     },
     {
       title: "Rôles",
@@ -167,7 +165,7 @@ export default function UsersPage() {
       render: (_, record) => {
         const roles = record.user_roles?.map((ur) => ur.role).filter(Boolean) || [];
         return roles.length > 0 ? (
-          roles.map((r) => (
+          roles.map(r => (
             <Tooltip key={r.id} title={r.description || ""}>
               <span style={{ marginRight: 6 }}>{r.name}</span>
             </Tooltip>
@@ -175,15 +173,16 @@ export default function UsersPage() {
         ) : (
           "-"
         );
-      }
+      },
     },
+    // Actions
     {
       title: "Actions",
       key: "actions",
       fixed: "right",
       width: 140,
       render: (_, record) => (
-        <Space>
+        <Space size="middle">
           <Tooltip title="Modifier">
             <EditOutlined style={{ cursor: "pointer" }} onClick={() => handleEdit(record)} />
           </Tooltip>
@@ -194,8 +193,8 @@ export default function UsersPage() {
             <EyeOutlined style={{ cursor: "pointer" }} onClick={() => showDetails(record)} />
           </Tooltip>
         </Space>
-      )
-    }
+      ),
+    },
   ];
 
   return (
@@ -204,7 +203,7 @@ export default function UsersPage() {
         <Search
           placeholder="Rechercher un utilisateur"
           allowClear
-          onChange={(e) => setSearchText(e.target.value)}
+          onChange={e => setSearchText(e.target.value)}
           style={{ width: 300 }}
           enterButton
         />
@@ -213,51 +212,78 @@ export default function UsersPage() {
         </Button>
       </Space>
 
-      <Row gutter={16} style={{ marginBottom: 24 }}>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="Nombre total d'utilisateurs"
-              value={totalUsers}
-              valueStyle={{ color: "#3f8600" }}
-              prefix={<UserOutlined />}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="Utilisateurs actifs"
-              value={activeUsers}
-              valueStyle={{ color: "#1890ff" }}
-              prefix={<CheckCircleOutlined />}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="Utilisateurs inactifs"
-              value={inactiveUsers}
-              valueStyle={{ color: "#cf1322" }}
-              prefix={<CloseCircleOutlined />}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="Nombre total de rôles"
-              value={totalRoles}
-              valueStyle={{ color: "#eb2f96" }}
-              prefix={<TeamOutlined />}
-            />
-          </Card>
-        </Col>
-      </Row>
+<Row gutter={16} style={{ marginBottom: 24 }} wrap={false}>
+
+  <Col span={4}>
+    <Card>
+      <Statistic
+        title="Nombre total d'utilisateurs"
+        value={totalUsers}
+        valueStyle={{ color: "#3f8600" }}
+        prefix={<UserOutlined />}
+      />
+    </Card>
+  </Col>
+
+  <Col span={4}>
+    <Card>
+      <Statistic
+        title="Utilisateurs actifs"
+        value={activeUsers}
+        valueStyle={{ color: "#1890ff" }}
+        prefix={<CheckCircleOutlined />}
+      />
+    </Card>
+  </Col>
+
+  <Col span={4}>
+    <Card>
+      <Statistic
+        title="Utilisateurs inactifs"
+        value={inactiveUsers}
+        valueStyle={{ color: "#cf1322" }}
+        prefix={<CloseCircleOutlined />}
+      />
+    </Card>
+  </Col>
+
+  <Col span={4}>
+    <Card>
+      <Statistic
+        title="Nombre total de rôles"
+        value={totalRoles}
+        valueStyle={{ color: "#eb2f96" }}
+        prefix={<TeamOutlined />}
+      />
+    </Card>
+  </Col>
+
+  <Col span={4}>
+    <Card>
+      <Statistic
+        title="Nombre d'entreprises"
+        value={users.filter(u => u.type_client === "entreprise").length}
+        valueStyle={{ color: "#1890ff" }}
+        prefix={<TeamOutlined />}
+      />
+    </Card>
+  </Col>
+
+  <Col span={4}>
+    <Card>
+      <Statistic
+        title="Nombre de particuliers"
+        value={users.filter(u => u.type_client === "particulier").length}
+        valueStyle={{ color: "#52c41a" }}
+        prefix={<UserOutlined />}
+      />
+    </Card>
+  </Col>
+
+</Row>
 
       {loading ? (
-        <Spin tip="Chargement utilisateurs..." />
+        <Spin tip="Chargement utilisateurs..." style={{ display: "block", textAlign: "center", padding: 40 }} />
       ) : (
         <Table
           rowKey="id"

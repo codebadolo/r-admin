@@ -19,9 +19,10 @@ import {
   Tooltip,
   Typography,
 } from "antd";
-import axios from "axios";
 import { useCallback, useEffect, useState } from "react";
-import RoleModalForm from "./RoleModalForm"; // Formulaire modale de création/édition
+import RoleModalForm from "./RoleModalForm";
+import api from "../../services/api";
+import { createRole, updateRole } from "../../services/userServices";
 
 const { Search } = Input;
 const { Title } = Typography;
@@ -32,14 +33,10 @@ export default function RolesPage() {
   const [modalVisible, setModalVisible] = useState(false);
   const [editingRole, setEditingRole] = useState(null);
   const [searchText, setSearchText] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  // Chargement roles depuis API
   const fetchRoles = async () => {
-    const token = localStorage.getItem("token");
-    if (!token) throw new Error("Pas de token d'authentification");
-    const response = await axios.get("http://127.0.0.1:8000/api/users/roles/", {
-      headers: { Authorization: `Token ${token}` },
-    });
+    const response = await api.get("/users/roles/");
     return response.data;
   };
 
@@ -70,10 +67,7 @@ export default function RolesPage() {
       cancelText: "Non",
       onOk: async () => {
         try {
-          const token = localStorage.getItem("token");
-          await axios.delete(`http://127.0.0.1:8000/api/users/roles/${id}/`, {
-            headers: { Authorization: `Token ${token}` },
-          });
+          await api.delete(`/users/roles/${id}/`);
           message.success("Rôle supprimé");
           loadData();
         } catch {
@@ -94,35 +88,38 @@ export default function RolesPage() {
   };
 
   const handleSubmit = async (values) => {
-    const token = localStorage.getItem("token");
+    setSaving(true);
     try {
       if (editingRole) {
-        // mise à jour
-        await axios.put(
-          `http://127.0.0.1:8000/api/users/roles/${editingRole.id}/`,
-          values,
-          { headers: { Authorization: `Token ${token}` } }
-        );
+        await updateRole(editingRole.id, values);
         message.success("Rôle modifié");
       } else {
-        // création
-        await axios.post("http://127.0.0.1:8000/api/users/roles/", values, {
-          headers: { Authorization: `Token ${token}` },
-        });
+        await createRole(values);
         message.success("Rôle créé");
       }
       setModalVisible(false);
       loadData();
     } catch (error) {
-      message.error("Erreur lors de l'enregistrement");
+      message.error("Erreur lors de la sauvegarde");
       console.error(error);
+    } finally {
+      setSaving(false);
     }
   };
 
-  // Statistiques simples
   const totalRoles = roles.length;
+  const now = new Date();
 
-  // Colonnes tableau roles
+  const recentRolesCount = roles.filter((r) => {
+    if (!r.created_at) return false;
+    const createdAt = new Date(r.created_at);
+    return (now - createdAt) / (1000 * 3600 * 24) <= 7;
+  }).length;
+
+  const noDescriptionCount = roles.filter((r) => !r.description || r.description.trim() === "").length;
+
+  const longNameCount = roles.filter((r) => r.name && r.name.length > 30).length;
+
   const columns = [
     { title: "Nom", dataIndex: "name", key: "name" },
     {
@@ -137,19 +134,10 @@ export default function RolesPage() {
       render: (_, record) => (
         <Space>
           <Tooltip title="Modifier">
-            <Button
-              type="link"
-              icon={<EditOutlined />}
-              onClick={() => handleEdit(record)}
-            />
+            <Button type="link" icon={<EditOutlined />} onClick={() => handleEdit(record)} />
           </Tooltip>
           <Tooltip title="Supprimer">
-            <Button
-              type="link"
-              danger
-              icon={<DeleteOutlined />}
-              onClick={() => handleDelete(record.id)}
-            />
+            <Button type="link" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record.id)} />
           </Tooltip>
         </Space>
       ),
@@ -157,7 +145,7 @@ export default function RolesPage() {
   ];
 
   return (
-    <div style={{ maxWidth: 960, margin: "20px auto", padding: 20 }}>
+    <div style={{ maxWidth: 1500, margin: "20px auto", padding: 20 }}>
       <Title level={2} style={{ textAlign: "center" }}>
         Gestion des rôles
       </Title>
@@ -170,6 +158,36 @@ export default function RolesPage() {
               value={totalRoles}
               valueStyle={{ color: "#722ed1" }}
               prefix={<UsergroupAddOutlined />}
+            />
+          </Card>
+        </Col>
+
+        <Col xs={24} sm={12} md={6}>
+          <Card>
+            <Statistic
+              title="Rôles créés dans les 7 derniers jours"
+              value={recentRolesCount}
+              valueStyle={{ color: "#3f8600" }}
+            />
+          </Card>
+        </Col>
+
+        <Col xs={24} sm={12} md={6}>
+          <Card>
+            <Statistic
+              title="Rôles sans description"
+              value={noDescriptionCount}
+              valueStyle={{ color: "#cf1322" }}
+            />
+          </Card>
+        </Col>
+
+        <Col xs={24} sm={12} md={6}>
+          <Card>
+            <Statistic
+              title="Rôles avec nom &gt; 30 caractères"
+              value={longNameCount}
+              valueStyle={{ color: "#1890ff" }}
             />
           </Card>
         </Col>
@@ -196,20 +214,15 @@ export default function RolesPage() {
       {loading ? (
         <Spin tip="Chargement des rôles..." />
       ) : (
-        <Table
-          columns={columns}
-          dataSource={roles}
-          rowKey="id"
-          pagination={{ pageSize: 10 }}
-        />
+        <Table columns={columns} dataSource={roles} rowKey="id" pagination={{ pageSize: 10 }} />
       )}
 
-      {/* Modal création/édition rôle */}
       <RoleModalForm
         visible={modalVisible}
         onCancel={() => setModalVisible(false)}
         onSubmit={handleSubmit}
         role={editingRole}
+        confirmLoading={saving} // Ajoutez ce prop et gérez-le dans RoleModalForm pour bouton loading
       />
     </div>
   );

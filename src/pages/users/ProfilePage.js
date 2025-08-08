@@ -1,194 +1,151 @@
-import { EditOutlined, UserOutlined } from "@ant-design/icons";
-import {
-    Avatar,
-    Badge,
-    Button,
-    Card,
-    Divider,
-    Form,
-    Input,
-    message,
-    Space,
-    Spin,
-    Tag,
-    Typography
-} from "antd";
-import axios from "axios";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
+import { Typography, Spin, Alert, Layout, Row, Col, Space, Button, Breadcrumb } from "antd";
+import { HomeOutlined } from "@ant-design/icons";
+import { useNavigate } from "react-router-dom";
+import { fetchCurrentUser } from "../../services/userServices";
 
-const { Title, Text } = Typography;
+const { Title, Paragraph, Text } = Typography;
+const { Content } = Layout;
+
+const sectionStyle = {
+  paddingBottom: 24,
+  borderBottom: "1px solid #ddd",
+  marginBottom: 24,
+};
+
+const InfoLine = ({ label, value }) => (
+  <Paragraph style={{ marginBottom: 8, marginTop: 0 }}>
+    <Text strong>{label} :</Text>{" "}
+    {value !== undefined && value !== null && value !== "" ? (
+      value
+    ) : (
+      <Text type="secondary">-</Text>
+    )}
+  </Paragraph>
+);
+
+const formatDateTime = (dateStr) => {
+  if (!dateStr) return "-";
+  const dt = new Date(dateStr);
+  return isNaN(dt.getTime()) ? "-" : dt.toLocaleDateString();
+};
 
 export default function ProfilePage() {
-  const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [editMode, setEditMode] = useState(false);
-  const [pwdEditMode, setPwdEditMode] = useState(false);
-  const [form] = Form.useForm();
-  const [pwdForm] = Form.useForm();
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const navigate = useNavigate();
 
-  // Récupère informations utilisateur connecté
   useEffect(() => {
     setLoading(true);
-    const token = localStorage.getItem("token");
-    axios.get("http://127.0.0.1:8000/api/users/users/me/", {
-      headers: { Authorization: `Token ${token}` },
-    })
-      .then((res) => setProfile(res.data))
+    fetchCurrentUser()
+      .then((res) => setUser(res.data))
+      .catch((e) => setError(e.message || "Erreur lors du chargement"))
       .finally(() => setLoading(false));
   }, []);
 
-  // Mise à jour des infos de profil
-  const handleUpdateProfile = async (values) => {
-    const token = localStorage.getItem("token");
-    try {
-      await axios.patch("http://127.0.0.1:8000/api/users/users/me/", values, {
-        headers: { Authorization: `Token ${token}` },
-      });
-      message.success("Profil mis à jour !");
-      setProfile({ ...profile, ...values });
-      setEditMode(false);
-    } catch {
-      message.error("Erreur lors de la mise à jour du profil.");
-    }
-  };
+  if (loading)
+    return (
+      <Spin
+        tip="Chargement du profil..."
+        style={{ display: "block", marginTop: 80, textAlign: "center" }}
+      />
+    );
 
-  // Changement du mot de passe
-  const handleChangePassword = async (values) => {
-    const token = localStorage.getItem("token");
-    try {
-      await axios.post("http://127.0.0.1:8000/api/users/change-password/", values, {
-        headers: { Authorization: `Token ${token}` },
-      });
-      message.success("Mot de passe changé avec succès !");
-      setPwdEditMode(false);
-      pwdForm.resetFields();
-    } catch {
-      message.error("Erreur lors de la modification du mot de passe.");
-    }
-  };
+  if (error)
+    return (
+      <Alert
+        type="error"
+        message="Erreur"
+        description={error}
+        showIcon
+        style={{ maxWidth: "100%", margin: "auto" }}
+      />
+    );
 
-  if (loading || !profile)
-    return <Spin tip="Chargement du profil..." style={{ margin: "60px auto", display: "block" }} />;
+  if (!user) return null;
 
   return (
-    <Card
-      style={{
-        maxWidth: 480,
-        margin: "40px auto",
-        padding: 24,
-        borderRadius: 10,
-        boxShadow: "0 0 8px #e3e5e8",
-      }}
-      title={
-        <Space>
-          <Avatar size={64} icon={<UserOutlined />} style={{ background: "#1890ff" }} />
-          <span>Mon profil</span>
-        </Space>
-      }
-      extra={
-        <Button icon={<EditOutlined />} onClick={() => setEditMode((v) => !v)}>
-          {editMode ? "Annuler" : "Éditer"}
-        </Button>
-      }
-    >
-      {!editMode ? (
-        <>
-          <Title level={4} style={{ marginTop: 0 }}>{profile.first_name} {profile.last_name}</Title>
-          <Text type="secondary">{profile.email}</Text>
-          <Divider />
-          <p>
-            <b>Date d’inscription :</b> {profile.date_joined ? new Date(profile.date_joined).toLocaleString() : "-"}
-          </p>
-          <p>
-            <b>Statut :</b>{" "}
-            <Badge color={profile.is_active ? "green" : "red"} text={profile.is_active ? "Actif" : "Inactif"} />
-          </p>
-          <p>
-            <b>Rôles :</b>{" "}
-            {profile.roles && profile.roles.length
-              ? profile.roles.map((role) => (
-                  <Tag color="geekblue" key={role.id}>{role.name}</Tag>
-                ))
-              : <Tag>Aucun rôle</Tag>}
-          </p>
-          <Button type="link" onClick={() => setPwdEditMode((v) => !v)}>
-            {pwdEditMode ? "Annuler le changement de mot de passe" : "Changer le mot de passe"}
-          </Button>
-          {pwdEditMode && (
-            <Form
-              form={pwdForm}
-              layout="vertical"
-              onFinish={handleChangePassword}
-              style={{ marginTop: 18 }}
-            >
-              <Form.Item
-                label="Mot de passe actuel"
-                name="old_password"
-                rules={[{ required: true, message: "Champ obligatoire" }]}
-              >
-                <Input.Password autoComplete="current-password" />
-              </Form.Item>
-              <Form.Item
-                label="Nouveau mot de passe"
-                name="new_password"
-                rules={[{ required: true, message: "Champ obligatoire" }]}
-              >
-                <Input.Password autoComplete="new-password" />
-              </Form.Item>
-              <Form.Item
-                label="Confirmer nouveau mot de passe"
-                name="confirm"
-                dependencies={["new_password"]}
-                rules={[
-                  { required: true, message: "Confirmer le nouveau mot de passe" },
-                  ({ getFieldValue }) => ({
-                    validator(_, value) {
-                      if (!value || getFieldValue("new_password") === value) return Promise.resolve();
-                      return Promise.reject(new Error("Les mots de passe ne correspondent pas"));
-                    },
-                  }),
-                ]}
-              >
-                <Input.Password autoComplete="new-password" />
-              </Form.Item>
-              <Form.Item>
-                <Button htmlType="submit" type="primary">Changer le mot de passe</Button>
-              </Form.Item>
-            </Form>
-          )}
-        </>
-      ) : (
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={handleUpdateProfile}
-          initialValues={{
-            first_name: profile.first_name,
-            last_name: profile.last_name,
-            email: profile.email,
-          }}
-        >
-          <Form.Item label="Prénom" name="first_name" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item label="Nom" name="last_name" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item label="Email" name="email" rules={[
-              { required: true, message: "Merci d'indiquer un email" },
-              { type: "email", message: "Email invalide" },
-            ]}
-          >
-            <Input />
-          </Form.Item>
-          <Form.Item>
+    <Layout style={{ minHeight: "100vh", padding: 24, background: "#fafafa" }}>
+      <Content style={{ width: 1500, margin: "auto", background: "#fff", padding: 24 }}>
+        {/* Breadcrumb */}
+        <Breadcrumb style={{ marginBottom: 24 }}>
+          <Breadcrumb.Item>
+            <HomeOutlined />
+          </Breadcrumb.Item>
+          <Breadcrumb.Item>Profil</Breadcrumb.Item>
+        </Breadcrumb>
+
+        <Title level={2}>Mon profil</Title>
+
+        <Row justify="space-between" style={{ marginBottom: 24 }}>
+          <Col>
+            {/* Vous pouvez ajouter ici un résumé ou titre, si besoin */}
+          </Col>
+          <Col>
             <Space>
-              <Button htmlType="submit" type="primary">Enregistrer</Button>
-              <Button onClick={() => setEditMode(false)}>Annuler</Button>
+              {/* Bouton Modifier profil */}
+              <Button type="primary" onClick={() => navigate("/profile/edit")}>
+                Modifier profil
+              </Button>
+
+              {/* Bouton Changer mot de passe */}
+              <Button onClick={() => navigate("/profile/change-password")}>
+                Changer mot de passe
+              </Button>
             </Space>
-          </Form.Item>
-        </Form>
-      )}
-    </Card>
+          </Col>
+        </Row>
+
+        <Row gutter={[32, 32]}>
+          <Col span={24}>
+            <div style={sectionStyle}>
+              <Title level={4}>Informations générales</Title>
+              <InfoLine label="Email" value={user.email} />
+              <InfoLine
+                label="Type client"
+                value={
+                  user.type_client
+                    ? user.type_client.charAt(0).toUpperCase() + user.type_client.slice(1)
+                    : "-"
+                }
+              />
+              <InfoLine label="Téléphone" value={user.telephone} />
+              <InfoLine label="Actif" value={user.is_active ? "Oui" : "Non"} />
+              <InfoLine label="Staff" value={user.is_staff ? "Oui" : "Non"} />
+              <InfoLine label="Date d'inscription" value={formatDateTime(user.date_joined)} />
+              <InfoLine
+                label="Accepte facture électronique"
+                value={user.accepte_facture_electronique ? "Oui" : "Non"}
+              />
+              <InfoLine label="Accepte CGV" value={user.accepte_cgv ? "Oui" : "Non"} />
+            </div>
+          </Col>
+
+          {Array.isArray(user.adresses) && user.adresses.length > 0 && (
+            <Col span={24}>
+              <div style={sectionStyle}>
+                <Title level={4}>Adresses</Title>
+                {user.adresses.map((adresse) => (
+                  <div
+                    key={adresse.id}
+                    style={{ border: "1px solid #ddd", padding: 16, marginBottom: 16 }}
+                  >
+                    <Space direction="vertical" style={{ width: "100%" }}>
+                      <InfoLine label="Utilisation" value={adresse.utilisation} />
+                      <InfoLine label="Type client" value={adresse.type_client} />
+                      <InfoLine label="Nom complet" value={adresse.nom_complet} />
+                      <InfoLine label="Téléphone" value={adresse.telephone} />
+                      <InfoLine label="Raison sociale" value={adresse.raison_sociale} />
+                      {/* Vous pouvez ajouter d’autres champs ici */}
+                    </Space>
+                  </div>
+                ))}
+              </div>
+            </Col>
+          )}
+        </Row>
+      </Content>
+    </Layout>
   );
 }
