@@ -75,8 +75,9 @@ function App() {
                       <Route path="/products/types" element={<ProductTypesPage />} />
                       <Route path="/products/attributes" element={<AttributesPage />} />
                       <Route path="/products/inventories" element={<VariantsPage />} />
-                      <Route path="/products/media" element={<MediaPage />} />
-                      <Route path="/products/stock" element={<StockPage />} />
+                      <Route path="/products/inventories" element={<VariantsPage />} />
+                     <Route path="/products/media" element={<MediaPage />} />
+                <Route path="/products/stock" element={<StockPage />} />
                       <Route path="/products/create" element={<AjouterProduit />} />
                       <Route path="/products/edit/:id" element={<ProductEditPage />} />
                       {/* Spécifications */}

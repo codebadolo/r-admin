@@ -16,7 +16,13 @@ import {
   Select,
   message,
 } from "antd";
-import { HomeOutlined, PlusOutlined, MinusCircleOutlined } from "@ant-design/icons";
+import {
+  HomeOutlined,
+  PlusOutlined,
+  SaveOutlined,
+  CloseOutlined,
+  MinusCircleOutlined,
+} from "@ant-design/icons";
 import api from "../../services/api";
 
 const { Title } = Typography;
@@ -24,13 +30,13 @@ const { Content } = Layout;
 const { Option } = Select;
 
 const TYPE_CLIENT_CHOICES = [
-  { value: 'particulier', label: 'Particulier' },
-  { value: 'entreprise', label: 'Entreprise' },
+  { value: "particulier", label: "Particulier" },
+  { value: "entreprise", label: "Entreprise" },
 ];
 
 const UTILISATION_CHOICES = [
-  { value: 'facturation', label: 'Facturation' },
-  { value: 'livraison', label: 'Livraison' },
+  { value: "facturation", label: "Facturation" },
+  { value: "livraison", label: "Livraison" },
 ];
 
 export default function UserUpdate() {
@@ -43,7 +49,7 @@ export default function UserUpdate() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
-  // For select options
+  // États pour les listes déroulantes
   const [rolesOptions, setRolesOptions] = useState([]);
   const [numeroTVAOptions, setNumeroTVAOptions] = useState([]);
   const [paysOptions, setPaysOptions] = useState([]);
@@ -52,18 +58,23 @@ export default function UserUpdate() {
   const [divisionFiscaleOptions, setDivisionFiscaleOptions] = useState([]);
 
   useEffect(() => {
-    // Charger les listes d’options nécessaires pour les selects
     async function loadOptions() {
       try {
-        const [rolesRes, numeroTVARes, paysRes, formeJuridiqueRes, regimeFiscalRes, divisionFiscaleRes] =
-          await Promise.all([
-            api.get("/users/roles/"),
-            api.get("/users/usertvanumbers/"),
-            api.get("/users/pays/"),
-            api.get("/users/formes-juridiques/"),
-            api.get("/users/regimefiscaux/"),
-            api.get("/users/divisionfiscales/"),
-          ]);
+        const [
+          rolesRes,
+          numeroTVARes,
+          paysRes,
+          formeJuridiqueRes,
+          regimeFiscalRes,
+          divisionFiscaleRes,
+        ] = await Promise.all([
+          api.get("/users/roles/"),
+          api.get("/users/numero-tva/"),
+          api.get("/users/pays/"),
+          api.get("/users/formejuridiques/"),
+          api.get("/users/regimefiscaux/"),
+          api.get("/users/divisionfiscales/"),
+        ]);
         setRolesOptions(rolesRes.data);
         setNumeroTVAOptions(numeroTVARes.data);
         setPaysOptions(paysRes.data);
@@ -72,27 +83,30 @@ export default function UserUpdate() {
         setDivisionFiscaleOptions(divisionFiscaleRes.data);
       } catch (err) {
         console.error("Erreur chargement options:", err);
+        message.error("Erreur lors du chargement des listes de sélection");
       }
     }
     loadOptions();
   }, []);
 
+  // Chargement données utilisateur et pré-remplissage du formulaire
   useEffect(() => {
     setLoading(true);
-    api.get(`/users/users/${id}/`)
+    api
+      .get(`/users/users/${id}/`)
       .then(({ data: user }) => {
-        // Prérmpli le formulaire selon la structure
-        // On mappe adresses pour s’assurer des champs ForeignKey en ID
-        const adressesFormatted = (user.adresses && user.adresses.length > 0)
-          ? user.adresses.map((a) => ({
-              ...a,
-              numero_tva_id: a.numero_tva ? a.numero_tva.id || null : null,
-              pays_id: a.pays ? a.pays.id || null : null,
-              forme_juridique_id: a.forme_juridique ? a.forme_juridique.id || null : null,
-              regime_fiscal_id: a.regime_fiscal ? a.regime_fiscal.id || null : null,
-              division_fiscale_id: a.division_fiscale ? a.division_fiscale.id || null : null,
-            }))
-          : [{}]; // Au moins une adresse vide pour le formulaire
+        // Préparer adresses avec les ids pour selects
+        const adressesFormatted =
+          user.adresses && user.adresses.length > 0
+            ? user.adresses.map((a) => ({
+                ...a,
+                numero_tva_id: a.numero_tva ? a.numero_tva.id || null : null,
+                pays_id: a.pays ? a.pays.id || null : null,
+                forme_juridique_id: a.forme_juridique ? a.forme_juridique.id || null : null,
+                regime_fiscal_id: a.regime_fiscal ? a.regime_fiscal.id || null : null,
+                division_fiscale_id: a.division_fiscale ? a.division_fiscale.id || null : null,
+              }))
+            : [{}];
 
         form.setFieldsValue({
           email: user.email,
@@ -102,35 +116,39 @@ export default function UserUpdate() {
           telephone: user.telephone,
           is_active: user.is_active,
           is_staff: user.is_staff,
-          password: "", // Pas de valeur préremplie pour la sécurité
+          password: "", // Champ mot de passe vide pour sécurité
 
           roles: user.roles || [],
           adresses: adressesFormatted,
         });
+
         setError(null);
       })
       .catch((err) => {
-        setError(err.message || "Erreur lors du chargement des données");
+        setError(err.message || "Erreur lors du chargement des données utilisateur");
       })
       .finally(() => setLoading(false));
   }, [id, form]);
 
+  // Soumission formulaire
   const onFinish = async (values) => {
     setSaving(true);
 
-    // Nettoyer password vide pour ne pas l’envoyer
+    // Ne pas envoyer le mot de passe s’il est vide (ne pas écraser)
     const payload = {
       ...values,
       password: values.password ? values.password : undefined,
     };
 
     try {
-      await api.put(`/users/users/${id}/`, payload);
+      await api.put(`/users/${id}/`, payload);
       message.success("Utilisateur mis à jour avec succès");
       navigate(`/users/${id}`);
     } catch (err) {
       console.error(err);
-      message.error(err.response?.data?.detail || "Erreur lors de la sauvegarde");
+      message.error(
+        err.response?.data?.detail || "Erreur lors de la sauvegarde de l'utilisateur"
+      );
     } finally {
       setSaving(false);
     }
@@ -138,16 +156,25 @@ export default function UserUpdate() {
 
   if (loading)
     return (
-      <Spin tip="Chargement..." style={{ display: "block", marginTop: 80, textAlign: "center" }} />
+      <Spin
+        tip="Chargement..."
+        style={{ display: "block", marginTop: 80, textAlign: "center" }}
+      />
     );
 
   if (error)
     return (
-      <Alert type="error" message="Erreur" description={error} showIcon style={{ maxWidth: "100%", margin: "auto" }} />
+      <Alert
+        type="error"
+        message="Erreur"
+        description={error}
+        showIcon
+        style={{ maxWidth: "100%", margin: "auto" }}
+      />
     );
 
   return (
-    <Layout style={{ maxWidth: 900, margin: "auto", padding: 24, background: "#fafafa" }}>
+    <Layout style={{ maxWidth: 1000, margin: "auto", padding: 24, background: "#fafafa" }}>
       <Content>
         <Breadcrumb style={{ marginBottom: 24 }}>
           <Breadcrumb.Item>
@@ -158,7 +185,7 @@ export default function UserUpdate() {
           <Breadcrumb.Item>
             <Link to="/users">Utilisateurs</Link>
           </Breadcrumb.Item>
-          <Breadcrumb.Item>Modification</Breadcrumb.Item>
+          <Breadcrumb.Item>Mise à jour</Breadcrumb.Item>
         </Breadcrumb>
 
         <Title level={2} style={{ marginBottom: 24 }}>
@@ -167,40 +194,64 @@ export default function UserUpdate() {
 
         <Form form={form} layout="vertical" onFinish={onFinish} autoComplete="off">
           <Row gutter={16}>
-            {/* Champs utilisateur simples */}
+            {/* Email */}
             <Col xs={24} sm={12}>
               <Form.Item
                 label="Email"
                 name="email"
                 rules={[
                   { required: true, message: "Veuillez entrer l'adresse email" },
-                  { type: "email", message: "Veuillez entrer une adresse email valide" },
+                  { type: "email", message: "Email invalide" },
                 ]}
               >
                 <Input placeholder="email@example.com" />
               </Form.Item>
             </Col>
 
+            {/* Type client */}
             <Col xs={24} sm={12}>
-              <Form.Item label="Type client" name="type_client" rules={[{ required: true }]}>
-                <Select placeholder="Sélectionnez un type client" options={TYPE_CLIENT_CHOICES} />
+              <Form.Item
+                label="Type client"
+                name="type_client"
+                rules={[{ required: true }]}
+              >
+                <Select options={TYPE_CLIENT_CHOICES} />
               </Form.Item>
             </Col>
 
+            {/* Téléphone */}
             <Col xs={24} sm={12}>
               <Form.Item label="Téléphone" name="telephone">
                 <Input placeholder="Téléphone" />
               </Form.Item>
             </Col>
 
+            {/* Mot de passe */}
             <Col xs={24} sm={12}>
-              <Form.Item label="Mot de passe" name="password" hasFeedback>
-                <Input.Password placeholder="Laissez vide pour ne pas changer" />
+              <Form.Item
+                label="Mot de passe"
+                name="password"
+                hasFeedback
+                tooltip="Laissez vide pour ne pas changer"
+                rules={[
+                  {
+                    min: 8,
+                    message: "Le mot de passe doit avoir au moins 8 caractères",
+                    whitespace: true,
+                  },
+                ]}
+              >
+                <Input.Password placeholder="Mot de passe" />
               </Form.Item>
             </Col>
 
+            {/* Flags */}
             <Col xs={24} sm={8}>
-              <Form.Item label="Utilisateur actif" name="is_active" valuePropName="checked">
+              <Form.Item
+                label="Utilisateur actif"
+                name="is_active"
+                valuePropName="checked"
+              >
                 <Switch />
               </Form.Item>
             </Col>
@@ -212,7 +263,11 @@ export default function UserUpdate() {
             </Col>
 
             <Col xs={24} sm={8}>
-              <Form.Item label="Accepte facture électronique" name="accepte_facture_electronique" valuePropName="checked">
+              <Form.Item
+                label="Accepte facture électronique"
+                name="accepte_facture_electronique"
+                valuePropName="checked"
+              >
                 <Switch />
               </Form.Item>
             </Col>
@@ -223,7 +278,7 @@ export default function UserUpdate() {
               </Form.Item>
             </Col>
 
-            {/* Rôles en multiselect */}
+            {/* Rôles multiselect */}
             <Col xs={24}>
               <Form.Item label="Rôles utilisateur" name="roles">
                 <Select
@@ -244,7 +299,7 @@ export default function UserUpdate() {
               </Form.Item>
             </Col>
 
-            {/* Liste dynamique des adresses */}
+            {/* Adresses dynamiques */}
             <Col xs={24}>
               <Form.List name="adresses">
                 {(fields, { add, remove }) => (
@@ -268,29 +323,20 @@ export default function UserUpdate() {
                                 {...restField}
                                 label="Utilisation"
                                 name={[name, "utilisation"]}
-                                rules={[{ required: true, message: "Champ obligatoire" }]}
+                                rules={[{ required: true }]}
                               >
                                 <Select options={UTILISATION_CHOICES} placeholder="Utilisation" />
                               </Form.Item>
                             </Col>
 
-                            <Col xs={24} sm={12}>
-                              <Form.Item
-                                {...restField}
-                                label="Type client"
-                                name={[name, "type_client"]}
-                                rules={[{ required: true, message: "Champ obligatoire" }]}
-                              >
-                                <Select options={TYPE_CLIENT_CHOICES} placeholder="Type client" />
-                              </Form.Item>
-                            </Col>
+                            {/* Suppression du champ type_client dans les adresses */}
 
                             <Col xs={24} sm={24}>
                               <Form.Item
                                 {...restField}
                                 label="Nom complet"
                                 name={[name, "nom_complet"]}
-                                rules={[{ required: true, message: "Champ obligatoire" }]}
+                                rules={[{ required: true }]}
                               >
                                 <Input placeholder="Nom complet" />
                               </Form.Item>
@@ -339,7 +385,7 @@ export default function UserUpdate() {
 
                             <Col xs={24} sm={12}>
                               <Form.Item {...restField} label="Forme juridique" name={[name, "forme_juridique_id"]}>
-                                <Select placeholder="Sélectionnez la forme juridique" allowClear>
+                                <Select placeholder="Forme juridique" allowClear>
                                   {formeJuridiqueOptions.map(({ id, nom }) => (
                                     <Option key={id} value={id}>
                                       {nom}
@@ -351,7 +397,7 @@ export default function UserUpdate() {
 
                             <Col xs={24} sm={12}>
                               <Form.Item {...restField} label="Régime fiscal" name={[name, "regime_fiscal_id"]}>
-                                <Select placeholder="Sélectionnez le régime fiscal" allowClear>
+                                <Select placeholder="Régime fiscal" allowClear>
                                   {regimeFiscalOptions.map(({ id, nom }) => (
                                     <Option key={id} value={id}>
                                       {nom}
@@ -363,7 +409,7 @@ export default function UserUpdate() {
 
                             <Col xs={24} sm={12}>
                               <Form.Item {...restField} label="Division fiscale" name={[name, "division_fiscale_id"]}>
-                                <Select placeholder="Sélectionnez la division fiscale" allowClear>
+                                <Select placeholder="Division fiscale" allowClear>
                                   {divisionFiscaleOptions.map(({ id, nom }) => (
                                     <Option key={id} value={id}>
                                       {nom}
@@ -425,6 +471,7 @@ export default function UserUpdate() {
                               </Form.Item>
                             </Col>
                           </Row>
+
                           <Button
                             type="link"
                             danger
@@ -440,8 +487,8 @@ export default function UserUpdate() {
                     <Form.Item>
                       <Button
                         type="dashed"
-                        onClick={() => add()}
                         block
+                        onClick={() => add()}
                         icon={<PlusOutlined />}
                       >
                         Ajouter une adresse
@@ -454,14 +501,19 @@ export default function UserUpdate() {
 
             {/* Boutons */}
             <Col xs={24}>
-              <Form.Item>
-                <Space>
-                  <Button type="primary" htmlType="submit" loading={saving}>
-                    Enregistrer
-                  </Button>
-                  <Button onClick={() => navigate(`/users/${id}`)}>Annuler</Button>
-                </Space>
-              </Form.Item>
+              <Space>
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  loading={saving}
+                  icon={<SaveOutlined />}
+                >
+                  Enregistrer
+                </Button>
+                <Button onClick={() => navigate(`/users/${id}`)} icon={<CloseOutlined />}>
+                  Annuler
+                </Button>
+              </Space>
             </Col>
           </Row>
         </Form>

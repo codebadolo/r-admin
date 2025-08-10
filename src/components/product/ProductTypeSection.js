@@ -1,12 +1,7 @@
 import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
 import { Button, Card, Col, message, Modal, Row, Spin } from "antd";
 import { useEffect, useState } from "react";
-import {
-    createProductType,
-    deleteProductType,
-    fetchProductTypes,
-    updateProductType,
-} from "../../services/productService";
+import productService from "../../services/productService";
 import ProductTypeModalForm from "./ProductTypeModalForm";
 
 export default function ProductTypeSection() {
@@ -21,8 +16,8 @@ export default function ProductTypeSection() {
 
   const loadTypes = () => {
     setLoading(true);
-    fetchProductTypes()
-      .then(setTypes)
+    productService.getProductTypes()
+      .then(res => setTypes(res.data))
       .catch(() => message.error("Erreur lors du chargement des types"))
       .finally(() => setLoading(false));
   };
@@ -44,7 +39,7 @@ export default function ProductTypeSection() {
       okText: "Oui",
       cancelText: "Non",
       onOk: () => {
-        deleteProductType(id)
+        productService.deleteProductType(id)
           .then(() => {
             message.success("Type supprimé");
             loadTypes();
@@ -56,8 +51,8 @@ export default function ProductTypeSection() {
 
   const handleSubmit = (values) => {
     const action = editingType
-      ? updateProductType(editingType.id, values)
-      : createProductType(values);
+      ? productService.updateProductType(editingType.id, values)
+      : productService.createProductType(values);
 
     action
       .then(() => {
@@ -90,7 +85,7 @@ export default function ProductTypeSection() {
               <Card
                 size="small"
                 hoverable
-                style={{ textAlign: "center" }} // Center content
+                style={{ textAlign: "center" }}
                 actions={[
                   <EditOutlined
                     key="edit"

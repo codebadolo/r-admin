@@ -1,3 +1,4 @@
+import { DeleteOutlined, EditOutlined } from "@ant-design/icons";
 import {
   Button,
   Form,
@@ -10,17 +11,7 @@ import {
   Table,
 } from "antd";
 import { useEffect, useState } from "react";
-
-import {
-  createProductAttribute,
-  createProductAttributeValue,
-  deleteProductAttribute,
-  deleteProductAttributeValue,
-  fetchProductAttributes,
-  fetchProductAttributeValues,
-  fetchProductTypes,
-  updateProductAttribute,
-} from "../../services/productService";
+import productService from "../../services/productService";
 
 const { Option } = Select;
 
@@ -50,7 +41,8 @@ export default function AttributesManager() {
 
   const loadProductTypes = async () => {
     try {
-      const types = await fetchProductTypes();
+      const typesRes = await productService.getProductTypes();
+      const types = typesRes.data;
       setProductTypes(types);
       if (types.length > 0) setSelectedProductType(types[0].id);
     } catch {
@@ -67,10 +59,12 @@ export default function AttributesManager() {
   const loadAttributes = async (typeId) => {
     setLoadingAttributes(true);
     try {
-      // Filtrer les attributs par type via paramètre si supporté, sinon filtrer localement
-      const allAttributes = await fetchProductAttributes();
-      // On filtre localement ici par exemple, adapter si l’API accepte un filtre
-      const filtered = allAttributes.filter(attr => attr.product_type === typeId);
+      // Récupérer tous les attributs
+      const attrRes = await productService.getProductAttributes();
+      const allAttributes = attrRes.data;
+
+      // Filtrer localement par type si API ne supporte pas filtre côté backend
+      const filtered = allAttributes.filter((attr) => attr.product_type === typeId);
       setAttributes(filtered);
     } catch {
       message.error("Erreur chargement des attributs");
@@ -86,7 +80,6 @@ export default function AttributesManager() {
       attrForm.setFieldsValue({
         name: attribute.name,
         type: attribute.type,
-        // On pourra préremplir plus si besoin
       });
     } else {
       attrForm.resetFields();
@@ -111,10 +104,10 @@ export default function AttributesManager() {
         product_type: selectedProductType,
       };
       if (editingAttribute) {
-        await updateProductAttribute(editingAttribute.id, payload);
+        await productService.updateProductAttribute(editingAttribute.id, payload);
         message.success("Attribut modifié");
       } else {
-        await createProductAttribute(payload);
+        await productService.createProductAttribute(payload);
         message.success("Attribut créé");
       }
       await loadAttributes(selectedProductType);
@@ -129,7 +122,8 @@ export default function AttributesManager() {
     setSelectedAttribute(attribute);
     setLoadingValues(true);
     try {
-      const values = await fetchProductAttributeValues({ attribute: attribute.id });
+      const valuesRes = await productService.getProductAttributeValues({ attribute: attribute.id });
+      const values = valuesRes.data;
       setAttributeValues(values);
       setValuesModalVisible(true);
     } catch {
@@ -148,14 +142,13 @@ export default function AttributesManager() {
 
   const addValue = async (vals) => {
     try {
-      await createProductAttributeValue({
+      await productService.createProductAttributeValue({
         ...vals,
         attribute: selectedAttribute.id,
       });
       message.success("Valeur ajoutée");
-      // Recharge valeurs
-      const values = await fetchProductAttributeValues({ attribute: selectedAttribute.id });
-      setAttributeValues(values);
+      const valuesRes = await productService.getProductAttributeValues({ attribute: selectedAttribute.id });
+      setAttributeValues(valuesRes.data);
       valuesForm.resetFields();
     } catch {
       message.error("Erreur ajout valeur");
@@ -164,10 +157,10 @@ export default function AttributesManager() {
 
   const deleteValue = async (id) => {
     try {
-      await deleteProductAttributeValue(id);
+      await productService.deleteProductAttributeValue(id);
       message.success("Valeur supprimée");
-      const values = await fetchProductAttributeValues({ attribute: selectedAttribute.id });
-      setAttributeValues(values);
+      const valuesRes = await productService.getProductAttributeValues({ attribute: selectedAttribute.id });
+      setAttributeValues(valuesRes.data);
     } catch {
       message.error("Erreur suppression valeur");
     }
@@ -187,7 +180,7 @@ export default function AttributesManager() {
             title="Confirmer la suppression ?"
             onConfirm={async () => {
               try {
-                await deleteProductAttribute(record.id);
+                await productService.deleteProductAttribute(record.id);
                 message.success("Attribut supprimé");
                 loadAttributes(selectedProductType);
               } catch {
@@ -276,7 +269,7 @@ export default function AttributesManager() {
               <Option value="text">Texte</Option>
               <Option value="number">Nombre</Option>
               <Option value="select">Liste déroulante</Option>
-              {/* ajoute d’autres types si besoin */}
+              {/* ajoutez d’autres types si besoin */}
             </Select>
           </Form.Item>
         </Form>

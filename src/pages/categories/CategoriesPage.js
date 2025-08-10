@@ -1,4 +1,4 @@
-import { PlusOutlined, ReloadOutlined } from "@ant-design/icons";
+import React, { useEffect, useState } from "react";
 import {
   Button,
   Col,
@@ -12,38 +12,39 @@ import {
   Spin,
   Tree,
 } from "antd";
-import { useEffect, useState } from "react";
 import {
-  createCategory,
-  deleteCategory,
-  fetchCategories,
-  updateCategory,
-} from "../../services/productService";
+  PlusOutlined,
+  ReloadOutlined,
+} from "@ant-design/icons";
+
+import productService from "../../services/productService";
 
 const { Content } = Layout;
 const { Search } = Input;
 const { Option } = Select;
 const { TreeNode } = Tree;
 
+// Ajoute le champ `parent_name` pour l’affichage
 function enrichCategoriesWithParentName(categories) {
   const idToName = {};
-  categories.forEach((cat) => {
+  categories.forEach(cat => {
     idToName[cat.id] = cat.name;
   });
-  return categories.map((cat) => ({
+  return categories.map(cat => ({
     ...cat,
     parent_name:
       cat.parent && cat.parent !== 0 ? idToName[cat.parent] || "Non défini" : "Racine",
   }));
 }
 
+// Construire une arborescence à partir d'une liste plate
 function buildCategoryTree(categories) {
   const map = {};
-  categories.forEach((cat) => {
+  categories.forEach(cat => {
     map[cat.id] = { ...cat, children: [] };
   });
   const tree = [];
-  categories.forEach((cat) => {
+  categories.forEach(cat => {
     if (cat.parent && cat.parent !== 0 && map[cat.parent]) {
       map[cat.parent].children.push(map[cat.id]);
     } else {
@@ -55,10 +56,10 @@ function buildCategoryTree(categories) {
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
-  const [editing, setEditing] = useState(null);
+  const [editingCategory, setEditingCategory] = useState(null);
   const [formVals, setFormVals] = useState({ name: "", parent: 0 });
 
   useEffect(() => {
@@ -68,36 +69,38 @@ export default function CategoriesPage() {
   const loadCategories = async () => {
     setLoading(true);
     try {
-      const res = await fetchCategories();
+      const res = await productService.getCategories();
       const enriched = enrichCategoriesWithParentName(res.data);
       setCategories(enriched);
     } catch {
       message.error("Erreur lors du chargement des catégories");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
+  // Filtre simple par nom puis construction arbre
   const filteredTree = () => {
     const filtered = !searchTerm.trim()
       ? categories
-      : categories.filter((cat) =>
+      : categories.filter(cat =>
           cat.name.toLowerCase().includes(searchTerm.toLowerCase())
         );
-
     return buildCategoryTree(filtered);
   };
 
-  function openModal(cat = null) {
-    setEditing(cat);
+  function openModal(category = null) {
+    setEditingCategory(category);
     setFormVals({
-      name: cat ? cat.name : "",
-      parent: cat ? cat.parent || 0 : 0,
+      name: category ? category.name : "",
+      parent: category ? category.parent || 0 : 0,
     });
     setModalVisible(true);
   }
+
   function closeModal() {
     setModalVisible(false);
-    setEditing(null);
+    setEditingCategory(null);
     setFormVals({ name: "", parent: 0 });
   }
 
@@ -106,12 +109,17 @@ export default function CategoriesPage() {
       message.error("Le nom est obligatoire");
       return;
     }
+    if (editingCategory && formVals.parent === editingCategory.id) {
+      message.error("Une catégorie ne peut pas être sa propre catégorie parente");
+      return;
+    }
+
     try {
-      if (editing) {
-        await updateCategory(editing.id, formVals);
+      if (editingCategory) {
+        await productService.updateCategory(editingCategory.id, formVals);
         message.success("Catégorie mise à jour");
       } else {
-        await createCategory(formVals);
+        await productService.createCategory(formVals);
         message.success("Catégorie créée");
       }
       closeModal();
@@ -128,7 +136,7 @@ export default function CategoriesPage() {
       cancelText: "Non",
       async onOk() {
         try {
-          await deleteCategory(category.id);
+          await productService.deleteCategory(category.id);
           message.success("Catégorie supprimée");
           loadCategories();
         } catch (error) {
@@ -139,8 +147,9 @@ export default function CategoriesPage() {
     });
   };
 
+  // Rendu récursif de l’arbre avec actions
   function renderTree(nodes) {
-    return nodes.map((n) => (
+    return nodes.map(n => (
       <TreeNode
         key={n.id}
         title={
@@ -156,20 +165,18 @@ export default function CategoriesPage() {
               transition: "background .13s",
               userSelect: "none",
             }}
-            onMouseOver={(e) => (e.currentTarget.style.background = "#f3f7fe")}
-            onMouseOut={(e) => (e.currentTarget.style.background = "transparent")}
+            onMouseOver={e => (e.currentTarget.style.background = "#f3f7fe")}
+            onMouseOut={e => (e.currentTarget.style.background = "transparent")}
           >
             <span>
               {n.name}{" "}
-              <i
-                style={{
-                  color: "#999",
-                  fontWeight: "normal",
-                  marginLeft: 8,
-                  fontSize: 14,
-                  fontStyle: "normal",
-                }}
-              >
+              <i style={{
+                color: "#999",
+                fontWeight: "normal",
+                marginLeft: 8,
+                fontSize: 14,
+                fontStyle: "normal",
+              }}>
                 (Parent : {n.parent_name})
               </i>
             </span>
@@ -179,10 +186,17 @@ export default function CategoriesPage() {
                 type="text"
                 style={{ color: "#1976d2", fontWeight: 600 }}
                 onClick={() => openModal(n)}
+                title="Modifier la catégorie"
               >
                 Modifier
               </Button>
-              <Button size="small" type="text" danger onClick={() => handleDelete(n)}>
+              <Button
+                size="small"
+                type="text"
+                danger
+                onClick={() => handleDelete(n)}
+                title="Supprimer la catégorie"
+              >
                 Supprimer
               </Button>
             </Space>
@@ -206,33 +220,31 @@ export default function CategoriesPage() {
           boxShadow: "0 8px 36px rgba(0,0,0,0.08)",
         }}
       >
-        <Row
-          justify="space-between"
-          align="middle"
-          style={{ marginBottom: 32, gap: 12 }}
-        >
+        <Row justify="space-between" align="middle" style={{ marginBottom: 32, gap: 12 }}>
           <Col>
-            <h1
-              style={{ fontWeight: 700, fontSize: 32, color: "#222", margin: 0 }}
-            >
+            <h1 style={{ fontWeight: 700, fontSize: 32, color: "#222", margin: 0 }}>
               Catégories
             </h1>
           </Col>
+
           <Col style={{ flex: 1, maxWidth: 380 }}>
             <Search
               placeholder="Rechercher une catégorie"
               allowClear
               size="large"
               style={{ width: "100%", borderRadius: 8 }}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={e => setSearchTerm(e.target.value)}
+              value={searchTerm}
             />
           </Col>
+
           <Col>
             <Button
               icon={<ReloadOutlined />}
-              style={{ borderRadius: 8, marginRight: 10 }}
               size="large"
+              style={{ borderRadius: 8, marginRight: 10 }}
               onClick={loadCategories}
+              title="Recharger"
             />
             <Button
               icon={<PlusOutlined />}
@@ -240,6 +252,7 @@ export default function CategoriesPage() {
               size="large"
               style={{ borderRadius: 8 }}
               onClick={() => openModal(null)}
+              title="Ajouter une catégorie"
             >
               Ajouter
             </Button>
@@ -266,11 +279,11 @@ export default function CategoriesPage() {
           </Tree>
         )}
 
-        {/* Modal pour création / modification avec Select parent */}
+        {/* Modal de création / modification */}
         <Modal
           open={modalVisible}
-          title={editing ? "Modifier la catégorie" : "Créer une catégorie"}
-          okText={editing ? "Enregistrer" : "Créer"}
+          title={editingCategory ? "Modifier la catégorie" : "Créer une catégorie"}
+          okText={editingCategory ? "Enregistrer" : "Créer"}
           onOk={submitForm}
           onCancel={closeModal}
           destroyOnClose
@@ -278,27 +291,24 @@ export default function CategoriesPage() {
           <Input
             placeholder="Nom de la catégorie"
             value={formVals.name}
-            onChange={(e) => setFormVals({ ...formVals, name: e.target.value })}
+            onChange={e => setFormVals({...formVals, name: e.target.value})}
             style={{ marginBottom: 22, fontSize: 16 }}
             autoFocus
           />
+
           <label
-            style={{
-              fontWeight: 600,
-              fontSize: 15,
-              marginBottom: 6,
-              display: "block",
-            }}
+            style={{ fontWeight: 600, fontSize: 15, marginBottom: 6, display: "block" }}
           >
             Catégorie parente
           </label>
+
           <Select
             showSearch
             placeholder="Sélectionnez une catégorie parente (ou aucune)"
             optionFilterProp="children"
             allowClear
-            value={formVals.parent || null}
-            onChange={(value) => setFormVals({ ...formVals, parent: value || 0 })}
+            value={formVals.parent || 0}
+            onChange={value => setFormVals({...formVals, parent: value || 0})}
             filterOption={(input, option) =>
               option.children.toLowerCase().includes(input.toLowerCase())
             }
@@ -306,8 +316,8 @@ export default function CategoriesPage() {
           >
             <Option value={0}>Aucune (catégorie racine)</Option>
             {categories
-              .filter((cat) => !editing || cat.id !== editing.id)
-              .map((category) => (
+              .filter(cat => !editingCategory || cat.id !== editingCategory.id)
+              .map(category => (
                 <Option key={category.id} value={category.id}>
                   {category.name}
                 </Option>

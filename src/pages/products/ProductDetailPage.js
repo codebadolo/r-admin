@@ -1,4 +1,5 @@
-import { ArrowLeftOutlined, DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
+import React, { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom"; // React Router pour route dynamique
 import {
   Button,
   Card,
@@ -6,370 +7,237 @@ import {
   Descriptions,
   Divider,
   Image,
+  List,
+  message,
   Modal,
   Row,
   Space,
   Spin,
   Table,
-  Tag,
   Typography,
-  Upload,
-  message,
 } from "antd";
-import { useCallback, useEffect, useState } from "react";
-// ... autres imports Ant Design, router, services, etc.
-
-import { useNavigate, useParams } from "react-router-dom";
 import {
-  createProductImage, // Assurez-vous d'avoir ces fonctions dans votre productService
-  deleteProductImage,
-  fetchProduct,
-} from "../../services/productService"; // Chemin vers votre fichier de services
+  EditOutlined,
+  DeleteOutlined,
+  ArrowLeftOutlined,
+  FileTextOutlined,
+} from "@ant-design/icons";
+import productService from "../../services/productService";
 
 const { Title, Text } = Typography;
 
 export default function ProductDetailPage() {
-  const { id } = useParams();
+  const { productId } = useParams();
   const navigate = useNavigate();
 
   const [product, setProduct] = useState(null);
+  const [variants, setVariants] = useState([]);
+  const [specifications, setSpecifications] = useState([]);
+  const [images, setImages] = useState([]);
+  const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // États pour la modal d'ajout d'image
-  const [isModalVisible, setIsModalVisible] = useState(false);
-  const [uploading, setUploading] = useState(false);
-
-  // Fonction pour recharger les données du produit après modification (upload/delete image)
-  const refreshProductData = useCallback(async () => {
+  // Chargement complet des infos produit
+  const loadProductDetails = async () => {
     setLoading(true);
     try {
-      const fetchedProduct = await fetchProduct(id);
-      setProduct(fetchedProduct);
+      const [prodRes, variantsRes, specsRes, imagesRes, docsRes] = await Promise.all([
+        productService.getProductById(productId),
+        productService.getVariants({ product: productId }),
+        productService.getProductSpecifications({ product: productId }),
+        productService.getProductImages({ product: productId }),
+        productService.getProductDocuments({ product: productId }),
+      ]);
+
+      setProduct(prodRes.data);
+      setVariants(variantsRes.data);
+      setSpecifications(specsRes.data);
+      setImages(imagesRes.data);
+      setDocuments(docsRes.data);
     } catch (error) {
-      console.error("Erreur lors du rechargement du produit:", error);
-      message.error("Impossible de recharger les données du produit.");
+      message.error("Erreur lors du chargement du produit");
     } finally {
       setLoading(false);
     }
-  }, [id]);
-
-  useEffect(() => {
-    refreshProductData();
-  }, [refreshProductData]);
-
-  // Image principale
-  const mainImage =
-    product?.images?.find((img) => img.is_feature) || product?.images?.[0] || null;
-
-  // Calcul des stocks totaux et vendus
-  const totalStock = product?.stocks?.reduce((sum, s) => sum + (s.units || 0), 0) || 0;
-  const soldStock = product?.stocks?.reduce((sum, s) => sum + (s.units_sold || 0), 0) || 0;
-
-  // Colonnes spécifications techniques
-  const attributeColumns = [
-    {
-      title: "Nom",
-      key: "attributeName",
-      render: (_, record) => record.option?.attribute?.name || "-",
-    },
-    {
-      title: "Valeur",
-      key: "attributeValue",
-      render: (_, record) => record.option?.value || "-",
-    },
-  ];
-
-  // Colonnes stock avec info entrepôt
-  const stockColumns = [
-    {
-      title: "Entrepôt",
-      key: "warehouseName",
-      render: (_, record) => record.warehouse?.name || "-",
-    },
-    {
-      title: "Localisation",
-      key: "warehouseLocation",
-      render: (_, record) => record.warehouse?.location || "-",
-    },
-    {
-      title: "Disponible",
-      dataIndex: "units",
-      key: "units",
-      render: (units) => (
-        <Tag color={units > 5 ? "green" : "red"}>{units ?? "-"}</Tag>
-      ),
-    },
-    {
-      title: "Déjà vendu",
-      dataIndex: "units_sold",
-      key: "unitsSold",
-      render: (units_sold) => units_sold ?? "-",
-    },
-  ];
-
-  // --- Fonctions de gestion d'image ---
-  const openModal = () => setIsModalVisible(true);
-  const closeModal = () => setIsModalVisible(false);
-
-  const handleUpload = async ({ file, onSuccess, onError }) => {
-    setUploading(true);
-    const formData = new FormData();
-    formData.append("product", product.id);
-    formData.append("image", file);
-
-    try {
-      const newImage = await createProductImage(formData);
-      message.success("Image ajoutée avec succès");
-      // Mettre à jour l'état local du produit pour inclure la nouvelle image
-      setProduct((prev) => ({
-        ...prev,
-        images: [...(prev.images || []), newImage],
-      }));
-      onSuccess(null, file);
-    } catch (error) {
-      console.error("Erreur lors de l'ajout de l'image:", error);
-      message.error("Erreur lors de l'ajout de l'image.");
-      onError();
-    } finally {
-      setUploading(false);
-    }
   };
 
-  const handleDeleteImage = (imgId) => {
+  useEffect(() => {
+    loadProductDetails();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productId]);
+
+  // Supprimer produit avec confirmation
+  const handleDelete = () => {
     Modal.confirm({
-      title: "Supprimer l’image",
-      content: "Voulez-vous vraiment supprimer cette image ?",
+      title: "Confirmer la suppression",
+      content: "Voulez-vous vraiment supprimer ce produit ?",
       okText: "Oui",
       cancelText: "Non",
       onOk: async () => {
         try {
-          await deleteProductImage(imgId);
-          message.success("Image supprimée avec succès.");
-          // Mettre à jour l'état local du produit pour retirer l'image supprimée
-          setProduct((prev) => ({
-            ...prev,
-            images: (prev.images || []).filter((img) => img.id !== imgId),
-          }));
-        } catch (error) {
-          console.error("Erreur lors de la suppression de l'image:", error);
-          message.error("Erreur lors de la suppression de l'image.");
+          await productService.deleteProduct(productId);
+          message.success("Produit supprimé");
+          navigate("/products"); // Retour à la liste
+        } catch {
+          message.error("Erreur lors de la suppression");
         }
       },
     });
   };
-  // --- Fin des fonctions de gestion d'image ---
 
-  if (loading)
-    return (
-      <Spin tip="Chargement..." style={{ display: "block", margin: "60px auto" }} />
-    );
-
-  if (!product)
-    return (
-      <Card>
-        <Text type="danger">Produit introuvable.</Text>
-        <Button style={{ marginTop: 16 }} onClick={() => navigate(-1)}>
-          <ArrowLeftOutlined /> Retour
-        </Button>
-      </Card>
-    );
+  // Colonnes variants (exemple basique)
+  const variantColumns = [
+    { title: "Nom", dataIndex: "nom", key: "nom" },
+    {
+      title: "Valeur",
+      dataIndex: "valeur",
+      key: "valeur",
+    },
+    {
+      title: "Prix supplémentaire (€)",
+      dataIndex: "prix_supplémentaire",
+      key: "prix_supplémentaire",
+      render: (val) => (val != null ? val.toFixed(2) : "-"),
+    },
+    { title: "Stock", dataIndex: "stock", key: "stock" },
+  ];
 
   return (
-    <Card
-      title={
-        <Space align="center" wrap>
-          <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(-1)} />
-          <span style={{ fontWeight: 500 }}>{product.name}</span>
-          <Tag color={product.is_active ? "green" : "red"}>
-            {product.is_active ? "Actif" : "Inactif"}
-          </Tag>
-          <Button
-            type="primary"
-            icon={<EditOutlined />}
-            onClick={() => navigate(`/products/edit/${product.id}`)}
-          >
-            Modifier
-          </Button>
-        </Space>
-      }
-    >
-      <Row gutter={32}>
-        {/* Colonne gauche (image principale/info produit) */}
-        <Col xs={24} md={8}>
-          <Card
-            bordered
-            cover={
-              mainImage ? (
-                <Image
-                  src={mainImage.image}
-                  alt={mainImage.alt_text || ""}
-                  style={{
-                    maxHeight: 320,
-                    objectFit: "contain",
-                    borderRadius: 8,
-                    background: "#fafafa",
-                  }}
-                />
-              ) : (
-                <div
-                  style={{
-                    height: 320,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    background: "#fcfcfc",
-                  }}
-                >
-                  <Text type="secondary">Aucune image</Text>
-                </div>
-              )
-            }
-          >
-            <Title level={4}>{product.name}</Title>
-            <Text type="secondary">{product.category?.name || "-"}</Text>
-            <br />
-            <Text strong>{Number(product.price).toFixed(2)} €</Text>
-            <br />
-            <Tag color="blue">{product.brand?.name || "-"}</Tag>
-            <br />
-            <Text>
-              Dépôt principal : {product.stocks?.[0]?.warehouse?.name || "-"}
-            </Text>
-            <Divider />
-            <Descriptions size="small" column={1}>
-              <Descriptions.Item label="Type">
-                {product.product_type?.name || "-"}
-              </Descriptions.Item>
-              <Descriptions.Item label="Slug">
-                {product.slug || "-"}
-              </Descriptions.Item>
-              <Descriptions.Item label="Créé le">
-                {new Date(product.created_at).toLocaleString()}
-              </Descriptions.Item>
-              <Descriptions.Item label="Modifié le">
-                {new Date(product.updated_at).toLocaleString()}
-              </Descriptions.Item>
-            </Descriptions>
-          </Card>
-        </Col>
+    <div style={{ maxWidth: 900, margin: "20px auto", padding: 20 }}>
+      <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/products")} style={{ marginBottom: 20 }}>
+        Retour à la liste
+      </Button>
 
-        {/* Colonne droite (description, attributs, stock, galerie) */}
-        <Col xs={24} md={16}>
-          <Title level={5}>Description</Title>
-          <Text>
-            {product.description ? (
-              product.description
-            ) : (
-              <Text type="secondary" italic>
-                (Aucune description)
-              </Text>
-            )}
-          </Text>
-          <Divider />
+      {loading ? (
+        <Spin tip="Chargement..." size="large" style={{ width: "100%", textAlign: "center" }} />
+      ) : !product ? (
+        <div>Produit non trouvé.</div>
+      ) : (
+        <>
+          <Title level={2}>{product.nom}</Title>
 
-          <Title level={5}>Spécifications techniques</Title>
-          {Array.isArray(product.attribute_values) &&
-          product.attribute_values.length > 0 ? (
-            <Table
-              columns={attributeColumns}
-              dataSource={product.attribute_values}
-              rowKey="id"
-              size="small"
-              pagination={false}
-            />
-          ) : (
-            <Text type="secondary" italic>
-              Aucun attribut
-            </Text>
-          )}
-
-          <Divider />
-          <Title level={5}>Stock</Title>
-          <Space size="large" wrap style={{ marginBottom: 12 }}>
-            <span>
-              <b>Disponible en total :</b>{" "}
-              <Tag color={totalStock > 5 ? "green" : "red"}>
-                {totalStock ?? "-"}
-              </Tag>
-            </span>
-            <span>
-              <b>Unités déjà vendues :</b>{" "}
-              <Tag color="blue">{soldStock ?? "-"}</Tag>
-            </span>
-          </Space>
-          <Table
-            columns={stockColumns}
-            dataSource={product.stocks || []}
-            rowKey="id"
-            size="small"
-            style={{ marginTop: 16 }}
-            pagination={false}
-          />
-          <Divider />
-
-          {/* Section Galerie d'images avec Upload et Suppression */}
-          <Row justify="space-between" align="middle" style={{ marginBottom: 12 }}>
-            <Title level={5}>Galerie d'images</Title>
-            <Button type="primary" icon={<PlusOutlined />} onClick={openModal}>
-              Ajouter une image
+          <Space style={{ marginBottom: 16 }}>
+            <Button type="primary" icon={<EditOutlined />} onClick={() => navigate(`/products/edit/${productId}`)}>
+              Modifier
             </Button>
+            <Button danger icon={<DeleteOutlined />} onClick={handleDelete}>
+              Supprimer
+            </Button>
+          </Space>
+
+          <Row gutter={24}>
+            <Col span={10}>
+              {images.length > 0 ? (
+                <Image.PreviewGroup>
+                  {images.map((img) => (
+                    <Image
+                      key={img.id}
+                      src={img.url || img.image_url}
+                      alt={img.name || "Image produit"}
+                      style={{ marginBottom: 10, borderRadius: 8 }}
+                    />
+                  ))}
+                </Image.PreviewGroup>
+              ) : (
+                <div style={{ padding: 20, background: "#fafafa", borderRadius: 8 }}>
+                  Pas d'image disponible.
+                </div>
+              )}
+            </Col>
+
+            <Col span={14}>
+              <Descriptions
+                title="Informations produit"
+                bordered
+                column={1}
+                size="middle"
+                layout="vertical"
+              >
+                <Descriptions.Item label="Description">
+                  {product.description || "-"}
+                </Descriptions.Item>
+                <Descriptions.Item label="Prix (€)">
+                  {product.prix != null ? product.prix.toFixed(2) : "-"}
+                </Descriptions.Item>
+                <Descriptions.Item label="Stock">
+                  {product.stock != null ? product.stock : "-"}
+                </Descriptions.Item>
+                <Descriptions.Item label="État">
+                  {product.etat || "-"}
+                </Descriptions.Item>
+                <Descriptions.Item label="Catégorie">
+                  {product.category?.nom || product.category?.name || "-"}
+                </Descriptions.Item>
+                <Descriptions.Item label="Marque">
+                  {product.brand?.nom || product.brand?.name || "-"}
+                </Descriptions.Item>
+                <Descriptions.Item label="EAN Code">
+                  {product.ean_code || "-"}
+                </Descriptions.Item>
+                <Descriptions.Item label="Activé">
+                  {product.is_active ? "Oui" : "Non"}
+                </Descriptions.Item>
+              </Descriptions>
+            </Col>
           </Row>
 
-          {(product.images || []).length === 0 ? (
-            <Text type="secondary">Aucune image disponible</Text>
+          <Divider />
+
+          <Title level={4}>Variantes</Title>
+          {variants.length === 0 ? (
+            <div>Aucune variante disponible.</div>
           ) : (
-            <Space size={[12, 12]} wrap>
-              {(product.images || []).map((img) => (
-                <div
-                  key={img.id}
-                  style={{ position: "relative", display: "inline-block" }}
-                >
-                  <Image
-                    src={img.image}
-                    alt={img.alt_text || ""}
-                    width={96}
-                    style={{ borderRadius: 8 }}
-                  />
-                  <Button
-                    type="text"
-                    danger
-                    size="small"
-                    icon={<DeleteOutlined />}
-                    style={{
-                      position: "absolute",
-                      top: 4,
-                      right: 4,
-                      background: "rgba(255,255,255,0.75)",
-                      borderRadius: "50%",
-                    }}
-                    onClick={() => handleDeleteImage(img.id)}
-                    title="Supprimer l'image"
-                  />
-                </div>
-              ))}
-            </Space>
+            <Table
+              dataSource={variants}
+              columns={variantColumns}
+              rowKey="id"
+              pagination={false}
+              size="small"
+              style={{ marginBottom: 24 }}
+            />
           )}
 
-          {/* Modal d’ajout d’image */}
-          <Modal
-            title="Ajouter une image"
-            visible={isModalVisible}
-            onCancel={closeModal}
-            footer={null}
-            destroyOnClose
-          >
-            <Upload
-              accept="image/*"
-              customRequest={handleUpload}
-              showUploadList={false}
-            >
-              <Button icon={<PlusOutlined />} loading={uploading}>
-                Cliquer pour uploader une image
-              </Button>
-            </Upload>
-          </Modal>
-        </Col>
-      </Row>
-    </Card>
+          <Divider />
+
+          <Title level={4}>Spécifications</Title>
+          {specifications.length === 0 ? (
+            <div>Aucune spécification disponible.</div>
+          ) : (
+            <List
+              bordered
+              size="small"
+              dataSource={specifications}
+              renderItem={(spec) => (
+                <List.Item>
+                  <b>{spec.spec_key?.nom_attribut || spec.nom_attribut} :</b>{" "}
+                  {spec.valeur}
+                </List.Item>
+              )}
+              style={{ marginBottom: 24 }}
+            />
+          )}
+
+          <Divider />
+
+          <Title level={4}>Documents</Title>
+          {documents.length === 0 ? (
+            <div>Aucun document disponible.</div>
+          ) : (
+            <List
+              size="small"
+              dataSource={documents}
+              renderItem={(doc) => (
+                <List.Item>
+                  <a href={doc.url || doc.file_url} target="_blank" rel="noopener noreferrer">
+                    <FileTextOutlined style={{ marginRight: 8 }} />
+                    {doc.name || doc.filename || "Document"}
+                  </a>
+                </List.Item>
+              )}
+            />
+          )}
+        </>
+      )}
+    </div>
   );
 }

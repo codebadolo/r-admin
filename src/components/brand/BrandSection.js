@@ -1,7 +1,7 @@
 import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
 import { Button, Card, Col, message, Modal, Row, Spin } from "antd";
 import { useEffect, useState } from "react";
-import { createBrand, deleteBrand, fetchBrands, updateBrand } from "../../services/productService";
+import productService from "../../services/productService";
 import BrandModalForm from "./BrandModalForm";
 
 export default function BrandSection() {
@@ -16,8 +16,8 @@ export default function BrandSection() {
 
   const loadBrands = () => {
     setLoading(true);
-    fetchBrands()
-      .then(setBrands)
+    productService.getBrands()
+      .then(res => setBrands(res.data))
       .catch(() => message.error("Erreur chargement marques"))
       .finally(() => setLoading(false));
   };
@@ -39,7 +39,7 @@ export default function BrandSection() {
       okText: "Oui",
       cancelText: "Non",
       onOk: () => {
-        deleteBrand(id)
+        productService.deleteBrand(id)
           .then(() => {
             message.success("Marque supprimée");
             loadBrands();
@@ -56,8 +56,8 @@ export default function BrandSection() {
       formData.append("logo", values.logoFile);
     }
     const req = editingBrand
-      ? updateBrand(editingBrand.id, formData)
-      : createBrand(formData);
+      ? productService.updateBrand(editingBrand.id, formData)
+      : productService.createBrand(formData);
 
     req
       .then(() => {

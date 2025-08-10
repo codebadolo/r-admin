@@ -1,5 +1,18 @@
 import React, { useEffect, useState } from "react";
-import { Typography, Spin, Alert, Layout, Row, Col, Space, Button, Breadcrumb } from "antd";
+import {
+  Typography,
+  Spin,
+  Alert,
+  Layout,
+  Row,
+  Col,
+  Space,
+  Button,
+  Breadcrumb,
+  Tooltip,
+  Table,
+  Tag,
+} from "antd";
 import { HomeOutlined } from "@ant-design/icons";
 import { useNavigate } from "react-router-dom";
 import { fetchCurrentUser } from "../../services/userServices";
@@ -8,8 +21,10 @@ const { Title, Paragraph, Text } = Typography;
 const { Content } = Layout;
 
 const sectionStyle = {
-  paddingBottom: 24,
-  borderBottom: "1px solid #ddd",
+  padding: 24,
+  borderRadius: 8,
+  background: "#fff",
+  boxShadow: "0 1px 4px rgb(0 21 41 / 8%)",
   marginBottom: 24,
 };
 
@@ -65,9 +80,57 @@ export default function ProfilePage() {
 
   if (!user) return null;
 
+  // Préparer les colonnes pour le tableau des adresses pour une meilleure disposition
+  const addressColumns = [
+    {
+      title: "Utilisation",
+      dataIndex: "utilisation",
+      key: "utilisation",
+      width: 120,
+      render: (text) => text?.charAt(0).toUpperCase() + text?.slice(1) || "-",
+    },
+    {
+      title: "Type client",
+      dataIndex: "type_client",
+      key: "type_client",
+      width: 130,
+      render: (text) => text?.charAt(0).toUpperCase() + text?.slice(1) || "-",
+    },
+    { title: "Nom complet", dataIndex: "nom_complet", key: "nom_complet", width: 180 },
+    { title: "Téléphone", dataIndex: "telephone", key: "telephone", width: 150 },
+    { title: "Raison sociale", dataIndex: "raison_sociale", key: "raison_sociale", width: 180 },
+    {
+      title: "Numéro TVA",
+      dataIndex: ["numero_tva", "numero_tva"],
+      key: "numero_tva",
+      width: 150,
+      render: (text) => text || "-",
+    },
+    {
+      title: "Pays",
+      dataIndex: ["pays", "nom"],
+      key: "pays",
+      width: 120,
+      render: (text) => text || "-",
+    },
+    { title: "Ville", dataIndex: "ville", key: "ville", width: 130 },
+    { title: "Code Postal", dataIndex: "code_postal", key: "code_postal", width: 110 },
+    { title: "Rue", dataIndex: "rue", key: "rue", width: 200 },
+  ];
+
+  // Gestion des rôles, tenter différentes clés possibles
+  let roles = [];
+  if (Array.isArray(user.roles) && user.roles.length > 0) {
+    roles = user.roles;
+  } else if (Array.isArray(user.user_roles) && user.user_roles.length > 0) {
+    roles = user.user_roles.map((ur) => ur.role).filter(Boolean);
+  } else if (Array.isArray(user.roles_detail) && user.roles_detail.length > 0) {
+    roles = user.roles_detail;
+  }
+
   return (
     <Layout style={{ minHeight: "100vh", padding: 24, background: "#fafafa" }}>
-      <Content style={{ width: 1500, margin: "auto", background: "#fff", padding: 24 }}>
+      <Content style={{ width: "90%", maxWidth: 1200, margin: "auto" }}>
         {/* Breadcrumb */}
         <Breadcrumb style={{ marginBottom: 24 }}>
           <Breadcrumb.Item>
@@ -76,31 +139,25 @@ export default function ProfilePage() {
           <Breadcrumb.Item>Profil</Breadcrumb.Item>
         </Breadcrumb>
 
-        <Title level={2}>Mon profil</Title>
+        <Title level={2} style={{ marginBottom: 24 }}>
+          Mon profil
+        </Title>
 
-        <Row justify="space-between" style={{ marginBottom: 24 }}>
-          <Col>
-            {/* Vous pouvez ajouter ici un résumé ou titre, si besoin */}
-          </Col>
-          <Col>
-            <Space>
-              {/* Bouton Modifier profil */}
-              <Button type="primary" onClick={() => navigate("/profile/edit")}>
-                Modifier profil
-              </Button>
-
-              {/* Bouton Changer mot de passe */}
-              <Button onClick={() => navigate("/profile/change-password")}>
-                Changer mot de passe
-              </Button>
-            </Space>
-          </Col>
+        {/* Boutons Modification */}
+        <Row justify="end" style={{ marginBottom: 32 }}>
+          <Space>
+            <Button type="primary" onClick={() => navigate("/profile/edit")}>
+              Modifier profil
+            </Button>
+            <Button onClick={() => navigate("/profile/change-password")}>Changer mot de passe</Button>
+          </Space>
         </Row>
 
-        <Row gutter={[32, 32]}>
-          <Col span={24}>
-            <div style={sectionStyle}>
-              <Title level={4}>Informations générales</Title>
+        {/* Informations générales */}
+        <div style={sectionStyle}>
+          <Title level={4}>Informations générales</Title>
+          <Row gutter={[16, 16]}>
+            <Col xs={24} sm={12} md={8}>
               <InfoLine label="Email" value={user.email} />
               <InfoLine
                 label="Type client"
@@ -113,38 +170,65 @@ export default function ProfilePage() {
               <InfoLine label="Téléphone" value={user.telephone} />
               <InfoLine label="Actif" value={user.is_active ? "Oui" : "Non"} />
               <InfoLine label="Staff" value={user.is_staff ? "Oui" : "Non"} />
+            </Col>
+            <Col xs={24} sm={12} md={8}>
               <InfoLine label="Date d'inscription" value={formatDateTime(user.date_joined)} />
               <InfoLine
                 label="Accepte facture électronique"
                 value={user.accepte_facture_electronique ? "Oui" : "Non"}
               />
               <InfoLine label="Accepte CGV" value={user.accepte_cgv ? "Oui" : "Non"} />
-            </div>
-          </Col>
-
-          {Array.isArray(user.adresses) && user.adresses.length > 0 && (
-            <Col span={24}>
-              <div style={sectionStyle}>
-                <Title level={4}>Adresses</Title>
-                {user.adresses.map((adresse) => (
-                  <div
-                    key={adresse.id}
-                    style={{ border: "1px solid #ddd", padding: 16, marginBottom: 16 }}
-                  >
-                    <Space direction="vertical" style={{ width: "100%" }}>
-                      <InfoLine label="Utilisation" value={adresse.utilisation} />
-                      <InfoLine label="Type client" value={adresse.type_client} />
-                      <InfoLine label="Nom complet" value={adresse.nom_complet} />
-                      <InfoLine label="Téléphone" value={adresse.telephone} />
-                      <InfoLine label="Raison sociale" value={adresse.raison_sociale} />
-                      {/* Vous pouvez ajouter d’autres champs ici */}
-                    </Space>
-                  </div>
-                ))}
-              </div>
             </Col>
+            <Col xs={24} sm={24} md={8}>
+              {/* Affichage des numéros TVA valides */}
+              <Title level={5}>Numéros TVA valides</Title>
+              {Array.isArray(user.numero_tva_valides) && user.numero_tva_valides.length > 0 ? (
+                <Space direction="vertical" size="small" style={{ width: "100%" }}>
+                  {user.numero_tva_valides.map((num) => (
+                    <Tag key={num.id} color="blue" style={{ fontSize: 14 }}>
+                      {num.numero_tva} ({num.pays})
+                    </Tag>
+                  ))}
+                </Space>
+              ) : (
+                <Text type="secondary">Aucun numéro TVA valide</Text>
+              )}
+            </Col>
+          </Row>
+        </div>
+
+        {/* Rôles */}
+        <div style={sectionStyle}>
+          <Title level={4}>Rôles utilisateur</Title>
+          {roles.length > 0 ? (
+            <Space wrap size="middle" style={{ minHeight: 50 }}>
+              {roles.map((r) => (
+                <Tooltip key={r.id} title={r.description || ""}>
+                  <Tag color="purple" style={{ fontSize: 14 }}>
+                    {r.name}
+                  </Tag>
+                </Tooltip>
+              ))}
+            </Space>
+          ) : (
+            <Text type="secondary">Aucun rôle attribué</Text>
           )}
-        </Row>
+        </div>
+
+        {/* Adresses */}
+        {Array.isArray(user.adresses) && user.adresses.length > 0 && (
+          <div style={sectionStyle}>
+            <Title level={4}>Adresses</Title>
+            <Table
+              dataSource={user.adresses}
+              columns={addressColumns}
+              rowKey="id"
+              pagination={false}
+              scroll={{ x: "max-content" }}
+              size="middle"
+            />
+          </div>
+        )}
       </Content>
     </Layout>
   );

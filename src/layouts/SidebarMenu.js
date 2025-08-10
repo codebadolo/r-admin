@@ -1,24 +1,20 @@
 import {
   BarChartOutlined,
   CarOutlined,
-  CreditCardOutlined,
   DashboardOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   SettingOutlined,
   ShopOutlined,
-  ShoppingCartOutlined,
   UserOutlined,
-  TagOutlined,
   MailOutlined,
-  FileOutlined
 } from '@ant-design/icons';
-import { Layout, Menu } from 'antd';
+import { Layout, Menu, Spin } from 'antd';
 import { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '../hooks/useAuth';
-import './SidebarMenu.css';
 
+import './SidebarMenu.css';
+import { useAuth } from '../hooks/useAuth';
 const { Sider } = Layout;
 const { SubMenu } = Menu;
 
@@ -27,20 +23,20 @@ const SidebarMenu = () => {
   const [openKeys, setOpenKeys] = useState([]);
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
 
   const toggleCollapsed = () => setCollapsed(!collapsed);
 
-  // hasRole check multiple roles
-  const hasRole = (...roles) => {
-    if (!user?.user_roles) return false;
-    return roles.some(roleName =>
-      user.user_roles.some(ur => ur.role.name === roleName)
+  // Check if user has any of the given roles (match by role.name)
+  const hasRole = (...roleNames) => {
+    if (!user?.roles_detail) return false;  // Adjust if your user object has roles as 'roles_detail'
+    return roleNames.some((roleName) =>
+      user.roles_detail.some((r) => r.name === roleName)
     );
   };
 
   useEffect(() => {
-    // Ouvrir par défaut selon la section active
+    // Open menu section corresponding to current path
     const path = location.pathname;
     if (path.startsWith('/products')) setOpenKeys(['products']);
     else if (path.startsWith('/specifications')) setOpenKeys(['specifications']);
@@ -61,9 +57,19 @@ const SidebarMenu = () => {
     else setOpenKeys([]);
   }, [location.pathname]);
 
-  const onOpenChange = keys => {
+  const onOpenChange = (keys) => {
     setOpenKeys(keys);
   };
+
+  if (loading) {
+    return (
+      <Sider collapsible collapsed={collapsed} trigger={null} width={260} style={{ minHeight: '100vh' }}>
+        <div className="sidebar-logo" style={{ padding: '16px', color: 'white', textAlign: 'center' }}>
+          <Spin tip="Chargement..." />
+        </div>
+      </Sider>
+    );
+  }
 
   return (
     <Sider collapsible collapsed={collapsed} trigger={null} width={260} style={{ minHeight: '100vh' }}>
@@ -80,7 +86,7 @@ const SidebarMenu = () => {
           </>
         )}
         <div
-          onClick={e => {
+          onClick={(e) => {
             e.stopPropagation();
             toggleCollapsed();
           }}
@@ -128,7 +134,6 @@ const SidebarMenu = () => {
             <Menu.Item key="/permissions">Permissions</Menu.Item>
             <Menu.Item key="/profile">Mon profil</Menu.Item>
             <Menu.Item key="/addresses">Gestion des adresses</Menu.Item>
-
             <Menu.Item key="/connections">Historique connexions</Menu.Item>
           </SubMenu>
         )}
@@ -162,7 +167,6 @@ const SidebarMenu = () => {
             Paramètres
           </Menu.Item>
         )}
-
       </Menu>
     </Sider>
   );

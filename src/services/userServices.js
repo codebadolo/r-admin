@@ -21,13 +21,13 @@ export const updateUserPassword = (id, data) =>
   api.post(`${BASE_USERS_URL}${id}/change-password/`, data);
 
 // Rôles utilisateurs (lister, créer, modifier, supprimer)
-export const fetchRoles = () => api.get(BASE_USER_ROLES_URL);
+export const fetchRoles = () => api.get(BASE_ROLES_URL);
 
 export const fetchUserRoles = (userId) => api.get(`${BASE_USER_ROLES_URL}?user=${userId}`);
 // Note : dans votre backend, la route exacte pour rôles utilisateurs liés à un user peut varier. 
 // Ici on suppose un filtre par query param 'user', adaptez si besoin.
 
-export const fetchRole = (id) => api.get(`${BASE_USER_ROLES_URL}${id}/`);
+export const fetchRole = (id) => api.get(`${BASE_ROLES_URL}${id}/`);
 
 export const createRole = (data) => api.post(BASE_ROLES_URL, data);
 

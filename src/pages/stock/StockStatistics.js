@@ -1,163 +1,131 @@
-import {
-  Card,
-  Col,
-  message,
-  Row,
-  Spin,
-  Statistic,
-  Typography,
-} from "antd";
-import { useEffect, useState } from "react";
-import {
-  CartesianGrid,
-  Cell,
-  Legend,
-  Line,
-  LineChart,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import { fetchStocks, fetchWarehouses } from "../../services/productService";
-
-const { Title } = Typography;
-const COLORS = [
-  '#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#AA336A', '#336AAA'
-];
-
-// Génère 30 jours de données de test à chaque montage
-const generateMockStockEvolution = () => {
-  const days = 30;
-  let data = [];
-  for (let i = 1; i <= days; i++) {
-    data.push({
-      day: `J-${days - i + 1}`,
-      stock: Math.floor(500 + Math.random() * 300 - i * 5),
-      sold: Math.floor(Math.random() * 50),
-    });
-  }
-  return data;
-};
+import React, { useEffect, useState } from "react";
+import { Card, Col, Row, Statistic, message, Spin } from "antd";
+import { Column } from '@ant-design/charts'; // Ant Design Charts, à installer via npm/yarn
+import productService from "../../services/productService";
 
 export default function StockStatistics() {
-  const [loading, setLoading] = useState(true);
-  const [stocks, setStocks] = useState([]);
-  const [warehouses, setWarehouses] = useState([]);
-  const [stockEvolution, setStockEvolution] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [stockLevels, setStockLevels] = useState([]);
+  const [stats, setStats] = useState({
+    totalStock: 0,
+    totalProducts: 0,
+    productsInAlert: 0,
+    productsOutOfStock: 0,
+  });
+
+  // Charger les données de stock
+  const loadStockData = async () => {
+    setLoading(true);
+    try {
+      const res = await productService.getStockLevels();
+      const stocks = res.data;
+
+      setStockLevels(stocks);
+
+      // Calculs de statistiques simples
+      const totalStock = stocks.reduce((sum, s) => sum + (s.stock_total || 0), 0);
+      const productsOutOfStock = stocks.filter(s => (s.stock_total || 0) === 0).length;
+      const productsInAlert = stocks.filter(
+        s => (s.seuil_alerte != null && s.stock_total != null && s.stock_total <= s.seuil_alerte)
+      ).length;
+      const totalProducts = stocks.length;
+
+      setStats({
+        totalStock,
+        totalProducts,
+        productsInAlert,
+        productsOutOfStock,
+      });
+    } catch (error) {
+      message.error("Erreur lors du chargement des statistiques de stock");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    async function loadStats() {
-      setLoading(true);
-      try {
-        const [stocksData, warehousesData] = await Promise.all([
-          fetchStocks(), fetchWarehouses()
-        ]);
-        setStocks(stocksData);
-        setWarehouses(warehousesData);
-        // Toujours mock (ou remplacer ensuite par des vraies stats d’historique)
-        setStockEvolution(generateMockStockEvolution());
-      } catch (e) {
-        message.error("Erreur de chargement des statistiques");
-      } finally {
-        setLoading(false);
-      }
-    }
-    loadStats();
+    loadStockData();
   }, []);
 
-  if (loading) {
-    return (
-      <Spin
-        tip="Chargement des statistiques..."
-        style={{ marginTop: 60, display: "block" }}
-      />
-    );
-  }
+  // Préparer données pour chart barres : stock par produit (nom)
+  const chartData = stockLevels.map(sl => ({
+    product: sl.product?.nom || sl.product?.name || `Produit #${sl.product}`,
+    stock: sl.stock_total || 0,
+  }));
 
-  const totalUnits = stocks.reduce((sum, s) => sum + (s.units || 0), 0);
-  const totalUnitsSold = stocks.reduce((sum, s) => sum + (s.units_sold || 0), 0);
-  const distinctWarehouses = new Set(stocks.map(s => s.warehouse?.id)).size;
-
-  // Répartition des stocks par entrepôt
-  const stockByWarehouse = warehouses
-    .map(wh => {
-      const total = stocks
-        .filter(s => s.warehouse?.id === wh.id)
-        .reduce((sum, s) => sum + (s.units || 0), 0);
-      return { name: wh.name, value: total };
-    })
-    .filter(item => item.value > 0);
+  const config = {
+    data: chartData,
+    xField: 'product',
+    yField: 'stock',
+    label: {
+      position: 'middle',
+      style: {
+        fill: '#FFFFFF',
+        opacity: 0.6,
+      },
+    },
+    xAxis: {
+      label: { autoHide: true, autoRotate: false },
+    },
+    meta: {
+      product: { alias: 'Produit' },
+      stock: { alias: 'Stock total' },
+    },
+    height: 350,
+    appendPadding: 10,
+  };
 
   return (
-    <>
-      <Title level={3} style={{ marginBottom: 24 }}>
-        Statistiques des stocks
-      </Title>
+    <div style={{ maxWidth: 1200, margin: "auto", padding: 24 }}>
+      <h2>Statistiques de stock</h2>
 
-      <Row gutter={16} style={{ marginBottom: 24 }}>
-        <Col xs={24} sm={8}>
-          <Card>
-            <Statistic title="Total unités en stock" value={totalUnits} precision={0} />
-          </Card>
-        </Col>
-        <Col xs={24} sm={8}>
-          <Card>
-            <Statistic title="Total unités vendues" value={totalUnitsSold} precision={0} />
-          </Card>
-        </Col>
-        <Col xs={24} sm={8}>
-          <Card>
-            <Statistic title="Entrepôts actifs" value={distinctWarehouses} />
-          </Card>
-        </Col>
-      </Row>
+      {loading ? (
+        <Spin tip="Chargement..." />
+      ) : (
+        <>
+          <Row gutter={16} style={{ marginBottom: 24 }}>
+            <Col span={6}>
+              <Card>
+                <Statistic
+                  title="Total articles en stock"
+                  value={stats.totalStock}
+                  valueStyle={{ color: '#3f8600' }}
+                />
+              </Card>
+            </Col>
+            <Col span={6}>
+              <Card>
+                <Statistic
+                  title="Nombre de produits"
+                  value={stats.totalProducts}
+                />
+              </Card>
+            </Col>
+            <Col span={6}>
+              <Card>
+                <Statistic
+                  title="Produits en seuil d'alerte"
+                  value={stats.productsInAlert}
+                  valueStyle={{ color: '#cf1322' }}
+                />
+              </Card>
+            </Col>
+            <Col span={6}>
+              <Card>
+                <Statistic
+                  title="Produits en rupture"
+                  value={stats.productsOutOfStock}
+                  valueStyle={{ color: '#cf1322' }}
+                />
+              </Card>
+            </Col>
+          </Row>
 
-      <Row gutter={24} style={{ marginBottom: 24 }}>
-        <Col xs={24} md={12}>
-          <Card title="Répartition du stock par entrepôt" style={{ height: 350 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={stockByWarehouse}
-                  dataKey="value"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  outerRadius={100}
-                  label={({ name }) => name}
-                >
-                  {stockByWarehouse.map((entry, idx) => (
-                    <Cell key={`cell-${idx}`} fill={COLORS[idx % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-                <Legend verticalAlign="bottom" height={36} />
-              </PieChart>
-            </ResponsiveContainer>
+          <Card title="Stock total par produit">
+            <Column {...config} />
           </Card>
-        </Col>
-        <Col xs={24} md={12}>
-          <Card title="Évolution du stock (30 derniers jours)" style={{ height: 350 }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart
-                data={stockEvolution}
-                margin={{ top: 20, right: 20, bottom: 20, left: 0 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="day" />
-                <YAxis />
-                <Tooltip />
-                <Legend />
-                <Line type="monotone" dataKey="stock" stroke="#0088FE" name="Stock" />
-                <Line type="monotone" dataKey="sold" stroke="#FF8042" name="Ventes" />
-              </LineChart>
-            </ResponsiveContainer>
-          </Card>
-        </Col>
-      </Row>
-    </>
+        </>
+      )}
+    </div>
   );
 }

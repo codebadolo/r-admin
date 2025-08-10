@@ -6,18 +6,18 @@ import {
   Typography,
   Spin,
   Alert,
-  List,
-
   Button,
   Row,
   Col,
   Space,
   Table,
-
+  Tooltip,
+  message,
 } from "antd";
 
 import { HomeOutlined, EditOutlined, FilePdfOutlined } from "@ant-design/icons";
 import api from "../../services/api";
+
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
@@ -57,7 +57,6 @@ export default function UserDetail() {
   const [loadingUser, setLoadingUser] = useState(false);
   const [errorUser, setErrorUser] = useState(null);
 
-  // Réf pour contenu exportable PDF
   const exportRef = useRef(null);
 
   useEffect(() => {
@@ -65,6 +64,7 @@ export default function UserDetail() {
     api
       .get(`/users/users/${id}/`)
       .then((res) => {
+        console.log("User data:", res.data); // Pour debug au besoin
         setUser(res.data);
         setErrorUser(null);
       })
@@ -74,19 +74,23 @@ export default function UserDetail() {
 
   const handleExportPDF = async () => {
     if (!exportRef.current) return;
-    // Capture contenu HTML en image
-    const canvas = await html2canvas(exportRef.current, {
-      scale: 2,
-      useCORS: true,
-      scrollY: -window.scrollY,
-    });
-    const imgData = canvas.toDataURL("image/png");
-    const pdf = new jsPDF("p", "mm", "a4");
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+    try {
+      const canvas = await html2canvas(exportRef.current, {
+        scale: 2,
+        useCORS: true,
+        scrollY: -window.scrollY,
+      });
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF("p", "mm", "a4");
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
 
-    pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
-    pdf.save(`user_${user.id}_info.pdf`);
+      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`user_${user.id}_info.pdf`);
+    } catch (error) {
+      message.error("Erreur lors de la génération du PDF");
+      console.error(error);
+    }
   };
 
   if (loadingUser)
@@ -110,9 +114,18 @@ export default function UserDetail() {
 
   if (!user) return null;
 
-  // Données existantes
   const hasAdresses = Array.isArray(user.adresses) && user.adresses.length > 0;
-  const hasUserRoles = Array.isArray(user.user_roles) && user.user_roles.length > 0;
+
+  // Gestion des rôles : support des différents noms possibles dans l'API
+  let roles = [];
+  if (Array.isArray(user.roles) && user.roles.length > 0) {
+    roles = user.roles;
+  } else if (Array.isArray(user.user_roles) && user.user_roles.length > 0) {
+    // extraire role des user_roles
+    roles = user.user_roles.map((ur) => ur.role).filter(Boolean);
+  } else if (Array.isArray(user.roles_detail) && user.roles_detail.length > 0) {
+    roles = user.roles_detail;
+  }
 
   // Colonnes tableau adresses
   const addressColumns = [
@@ -145,10 +158,16 @@ export default function UserDetail() {
 
   return (
     <Layout
-      style={{ maxWidth: 1500, minHeight: "100vh", padding: 24, background: "#fafafa", margin: "auto" }}
+      style={{
+        maxWidth: 1500,
+        minHeight: "100vh",
+        padding: 24,
+        background: "#fafafa",
+        margin: "auto",
+      }}
     >
       <Content style={{ width: "100%", margin: "auto" }}>
-        {/* Breadcrumb + boutons sur une même ligne */}
+        {/* Breadcrumb + boutons */}
         <Row justify="space-between" align="middle" style={{ marginBottom: 24 }}>
           <Col>
             <Breadcrumb>
@@ -182,12 +201,11 @@ export default function UserDetail() {
 
         {/* Contenu exportable */}
         <div ref={exportRef}>
-          {/* Informations générales, pleine largeur */}
+          {/* Informations générales */}
           <div style={sectionStyle}>
             <Title level={4}>Informations générales</Title>
             <Row gutter={[24, 24]}>
               <Col xs={24} sm={12} md={8}>
-       
                 <InfoLine label="Email" value={user.email} />
                 <InfoLine
                   label="Type client"
@@ -214,7 +232,7 @@ export default function UserDetail() {
             </Row>
           </div>
 
-          {/* Rôles utilisateur en défilement horizontal */}
+          {/* Rôles utilisateur */}
           <div
             style={{
               ...sectionStyle,
@@ -223,29 +241,25 @@ export default function UserDetail() {
             }}
           >
             <Title level={4}>Rôles utilisateur</Title>
-            {hasUserRoles ? (
+            {roles.length > 0 ? (
               <div style={{ display: "inline-flex", gap: 16 }}>
-                {user.user_roles.map((ur) => (
-                  <div
-                    key={ur.id}
-                    style={{
-                      minWidth: 200,
-                      padding: 16,
-                      border: "1px solid #d9d9d9",
-                      borderRadius: 8,
-                      backgroundColor: "#fafafa",
-                      boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-                      display: "inline-block",
-                      verticalAlign: "top",
-                    }}
-                    title={ur.role?.description || ""}
-                  >
-                    <Text strong>{ur.role?.name || "-"}</Text>
-                    <br />
-                    <Text type="secondary" style={{ fontSize: 12 }}>
-                      Assigné le : {formatDate(ur.assigned_at)}
-                    </Text>
-                  </div>
+                {roles.map((r) => (
+                  <Tooltip key={r.id} title={r.description || ""}>
+                    <div
+                      style={{
+                        minWidth: 200,
+                        padding: 16,
+                        border: "1px solid #d9d9d9",
+                        borderRadius: 8,
+                        backgroundColor: "#fafafa",
+                        boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                        display: "inline-block",
+                        verticalAlign: "top",
+                      }}
+                    >
+                      <Text strong>{r.name}</Text>
+                    </div>
+                  </Tooltip>
                 ))}
               </div>
             ) : (

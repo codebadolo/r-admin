@@ -1,27 +1,19 @@
 import { DeleteOutlined, EditOutlined } from "@ant-design/icons";
 import {
-    Button,
-    Card,
-    Col,
-    Collapse,
-    Input,
-    List,
-    message,
-    Modal,
-    Row,
-    Space,
-    Spin,
+  Button,
+  Card,
+  Col,
+  Collapse,
+  Input,
+  List,
+  message,
+  Modal,
+  Row,
+  Space,
+  Spin,
 } from "antd";
 import { useEffect, useState } from "react";
-import {
-    createProductAttribute,
-    deleteProductAttribute,
-    deleteProductAttributeValue,
-    fetchProductAttributeOptions,
-    fetchProductAttributes,
-    fetchProductTypes,
-    updateProductAttribute,
-} from "../../services/productService";
+import productService from "../../services/productService"; // IMPORT CORRIGÉ
 import AttributeModalForm from "./AttributeModalForm";
 
 const { Panel } = Collapse;
@@ -38,13 +30,18 @@ export default function AttributeSection() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [attrs, types] = await Promise.all([
-        fetchProductAttributes(),
-        fetchProductTypes(),
+      // Modifier selon vos API - ici j'assume que vous avez getProductAttributes, getProductTypes, getProductAttributeOptions
+      const [attrsRes, typesRes, optionsRes] = await Promise.all([
+        productService.getProductAttributes(),
+        productService.getProductTypes(),
+        productService.getProductAttributeOptions(),
       ]);
-      const allOptions = await fetchProductAttributeOptions();
 
-      // Affecter les options à chaque attribut correspondant
+      const attrs = attrsRes.data;
+      const types = typesRes.data;
+      const allOptions = optionsRes.data;
+
+      // Associer options aux attributs par product_attribute (id)
       const attrsWithOptions = attrs.map((attr) => ({
         ...attr,
         options: allOptions.filter(
@@ -65,7 +62,7 @@ export default function AttributeSection() {
     loadData();
   }, []);
 
-  // Gestion recherche locale : filtre attributs avec nom et nom de type produit
+  // Filtre local par nom attribut ou nom type produit
   const filteredAttributes = attributes.filter((attr) => {
     const lowerSearch = searchText.toLowerCase();
     return (
@@ -91,7 +88,7 @@ export default function AttributeSection() {
       okText: "Oui",
       cancelText: "Non",
       onOk: () => {
-        deleteProductAttribute(id)
+        productService.deleteProductAttribute(id)
           .then(() => {
             message.success("Attribut supprimé");
             loadData();
@@ -108,7 +105,7 @@ export default function AttributeSection() {
       okText: "Oui",
       cancelText: "Non",
       onOk: () => {
-        deleteProductAttributeValue(optionId)
+        productService.deleteProductAttributeValue(optionId)
           .then(() => {
             message.success("Option supprimée");
             loadData();
@@ -120,8 +117,8 @@ export default function AttributeSection() {
 
   const handleSubmit = (values) => {
     const action = editingAttribute
-      ? updateProductAttribute(editingAttribute.id, values)
-      : createProductAttribute(values);
+      ? productService.updateProductAttribute(editingAttribute.id, values)
+      : productService.createProductAttribute(values);
     action
       .then(() => {
         message.success(
