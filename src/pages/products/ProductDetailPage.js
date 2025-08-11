@@ -1,243 +1,234 @@
-import React, { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom"; // React Router pour route dynamique
+import React, { useEffect, useState, useRef } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
-  Button,
   Card,
-  Col,
   Descriptions,
-  Divider,
+  Typography,
+  Tag,
   Image,
   List,
   message,
-  Modal,
-  Row,
+  Button,
   Space,
-  Spin,
-  Table,
-  Typography,
-} from "antd";
-import {
-  EditOutlined,
-  DeleteOutlined,
-  ArrowLeftOutlined,
-  FileTextOutlined,
-} from "@ant-design/icons";
-import productService from "../../services/productService";
+  Row,
+  Col,
+  Breadcrumb,
+} from 'antd';
+import { FilePdfOutlined, EditOutlined, HomeOutlined } from '@ant-design/icons';
+import { fetchProductById } from '../../services/productService';
 
-const { Title, Text } = Typography;
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
-export default function ProductDetailPage() {
-  const { productId } = useParams();
+const { Title, Paragraph } = Typography;
+
+const ProductDetailPage = () => {
+  const { id } = useParams();
   const navigate = useNavigate();
 
   const [product, setProduct] = useState(null);
-  const [variants, setVariants] = useState([]);
-  const [specifications, setSpecifications] = useState([]);
-  const [images, setImages] = useState([]);
-  const [documents, setDocuments] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const detailRef = useRef(null); // ref pour capture PDF
 
-  // Chargement complet des infos produit
-  const loadProductDetails = async () => {
+  // Charger le produit
+  const loadProduct = async () => {
     setLoading(true);
     try {
-      const [prodRes, variantsRes, specsRes, imagesRes, docsRes] = await Promise.all([
-        productService.getProductById(productId),
-        productService.getVariants({ product: productId }),
-        productService.getProductSpecifications({ product: productId }),
-        productService.getProductImages({ product: productId }),
-        productService.getProductDocuments({ product: productId }),
-      ]);
-
-      setProduct(prodRes.data);
-      setVariants(variantsRes.data);
-      setSpecifications(specsRes.data);
-      setImages(imagesRes.data);
-      setDocuments(docsRes.data);
+      const res = await fetchProductById(id);
+      setProduct(res.data);
     } catch (error) {
-      message.error("Erreur lors du chargement du produit");
+      console.error('Erreur chargement produit:', error);
+      message.error('Erreur lors du chargement du produit.');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadProductDetails();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [productId]);
+    if (id) loadProduct();
+  }, [id]);
 
-  // Supprimer produit avec confirmation
-  const handleDelete = () => {
-    Modal.confirm({
-      title: "Confirmer la suppression",
-      content: "Voulez-vous vraiment supprimer ce produit ?",
-      okText: "Oui",
-      cancelText: "Non",
-      onOk: async () => {
-        try {
-          await productService.deleteProduct(productId);
-          message.success("Produit supprimé");
-          navigate("/products"); // Retour à la liste
-        } catch {
-          message.error("Erreur lors de la suppression");
-        }
-      },
+  if (loading) {
+    return (
+      <div style={{ padding: '100px 0', textAlign: 'center', fontSize: 18 }}>Chargement du produit...</div>
+    );
+  }
+
+  if (!product) {
+    return (
+      <div style={{ padding: '100px 0', textAlign: 'center', fontSize: 18 }}>Produit non trouvé.</div>
+    );
+  }
+
+  const safeGet = (obj, path, defaultVal = '-') =>
+    path.split('.').reduce((acc, key) => (acc && acc[key] != null ? acc[key] : null), obj) || defaultVal;
+
+  // Export PDF
+  const handleExportPdf = () => {
+    if (!detailRef.current) return;
+
+    html2canvas(detailRef.current, { scale: 2, scrollY: -window.scrollY }).then(canvas => {
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'pt', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`${product.nom || 'produit'}.pdf`);
     });
   };
 
-  // Colonnes variants (exemple basique)
-  const variantColumns = [
-    { title: "Nom", dataIndex: "nom", key: "nom" },
-    {
-      title: "Valeur",
-      dataIndex: "valeur",
-      key: "valeur",
-    },
-    {
-      title: "Prix supplémentaire (€)",
-      dataIndex: "prix_supplémentaire",
-      key: "prix_supplémentaire",
-      render: (val) => (val != null ? val.toFixed(2) : "-"),
-    },
-    { title: "Stock", dataIndex: "stock", key: "stock" },
-  ];
-
   return (
-    <div style={{ maxWidth: 900, margin: "20px auto", padding: 20 }}>
-      <Button icon={<ArrowLeftOutlined />} onClick={() => navigate("/products")} style={{ marginBottom: 20 }}>
-        Retour à la liste
-      </Button>
+    <div style={{ padding: 24, maxWidth: 1200, margin: 'auto', backgroundColor: '#fff' }}>
+      {/* Breadcrumb + Actions */}
+      <Row justify="space-between" align="middle" style={{ marginBottom: 16 }}>
+        <Col>
+          <Breadcrumb>
+            <Breadcrumb.Item>
+              <Link to="/"><HomeOutlined /></Link>
+            </Breadcrumb.Item>
+            <Breadcrumb.Item>
+              <Link to="/products">Catalogue</Link>
+            </Breadcrumb.Item>
+            <Breadcrumb.Item>{product.nom}</Breadcrumb.Item>
+          </Breadcrumb>
+        </Col>
 
-      {loading ? (
-        <Spin tip="Chargement..." size="large" style={{ width: "100%", textAlign: "center" }} />
-      ) : !product ? (
-        <div>Produit non trouvé.</div>
-      ) : (
-        <>
-          <Title level={2}>{product.nom}</Title>
-
-          <Space style={{ marginBottom: 16 }}>
-            <Button type="primary" icon={<EditOutlined />} onClick={() => navigate(`/products/edit/${productId}`)}>
-              Modifier
+        <Col>
+          <Space>
+            <Button type="default" icon={<FilePdfOutlined />} onClick={handleExportPdf}>
+              Exporter PDF
             </Button>
-            <Button danger icon={<DeleteOutlined />} onClick={handleDelete}>
-              Supprimer
+            <Button
+              type="primary"
+              icon={<EditOutlined />}
+              onClick={() => navigate(`/products/edit/${id}`)}
+            >
+              Mettre à jour
             </Button>
           </Space>
+        </Col>
+      </Row>
 
-          <Row gutter={24}>
-            <Col span={10}>
-              {images.length > 0 ? (
-                <Image.PreviewGroup>
-                  {images.map((img) => (
-                    <Image
-                      key={img.id}
-                      src={img.url || img.image_url}
-                      alt={img.name || "Image produit"}
-                      style={{ marginBottom: 10, borderRadius: 8 }}
-                    />
-                  ))}
-                </Image.PreviewGroup>
-              ) : (
-                <div style={{ padding: 20, background: "#fafafa", borderRadius: 8 }}>
-                  Pas d'image disponible.
-                </div>
-              )}
-            </Col>
-
-            <Col span={14}>
-              <Descriptions
-                title="Informations produit"
-                bordered
-                column={1}
-                size="middle"
-                layout="vertical"
+      {/* Contenu principal - tout visible sans scrollVertical important */}
+      <div ref={detailRef}>
+        <Row gutter={24} wrap={false} style={{ minHeight: 480 }}>
+          {/* Image */}
+          <Col flex="280px">
+            {product.image_url ? (
+              <Image
+                src={product.image_url}
+                alt={product.nom}
+                width={280}
+                height={280}
+                style={{ borderRadius: 8, objectFit: 'cover' }}
+                placeholder
+              />
+            ) : (
+              <div
+                style={{
+                  width: 280,
+                  height: 280,
+                  backgroundColor: '#f0f0f0',
+                  borderRadius: 8,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#999',
+                  fontStyle: 'italic',
+                }}
               >
+                Pas d’image
+              </div>
+            )}
+          </Col>
+
+          {/* Informations principales */}
+          <Col flex="1 1 0" style={{ overflowY: 'auto', maxHeight: 480 }}>
+            <Card bordered={false} bodyStyle={{ padding: 16 }}>
+              <Descriptions column={1} size="small" bordered layout="horizontal">
+                <Descriptions.Item label="Nom">{product.nom}</Descriptions.Item>
                 <Descriptions.Item label="Description">
-                  {product.description || "-"}
+                  {product.description || <i>Pas de description</i>}
                 </Descriptions.Item>
-                <Descriptions.Item label="Prix (€)">
-                  {product.prix != null ? product.prix.toFixed(2) : "-"}
-                </Descriptions.Item>
-                <Descriptions.Item label="Stock">
-                  {product.stock != null ? product.stock : "-"}
-                </Descriptions.Item>
+                <Descriptions.Item label="Catégorie">{safeGet(product, 'category.nom')}</Descriptions.Item>
+                <Descriptions.Item label="Marque">{safeGet(product, 'brand.nom')}</Descriptions.Item>
+                <Descriptions.Item label="Prix">{product.prix} €</Descriptions.Item>
+                <Descriptions.Item label="Stock">{product.stock}</Descriptions.Item>
                 <Descriptions.Item label="État">
-                  {product.etat || "-"}
+                  <Tag color={product.etat === 'disponible' ? 'green' : 'volcano'}>
+                    {product.etat.toUpperCase()}
+                  </Tag>
                 </Descriptions.Item>
-                <Descriptions.Item label="Catégorie">
-                  {product.category?.nom || product.category?.name || "-"}
+                <Descriptions.Item label="Code EAN">{product.ean_code || '-'}</Descriptions.Item>
+                <Descriptions.Item label="Produit actif">{product.is_active ? 'Oui' : 'Non'}</Descriptions.Item>
+                <Descriptions.Item label="Date création">
+                  {new Date(product.date_creation).toLocaleString()}
                 </Descriptions.Item>
-                <Descriptions.Item label="Marque">
-                  {product.brand?.nom || product.brand?.name || "-"}
-                </Descriptions.Item>
-                <Descriptions.Item label="EAN Code">
-                  {product.ean_code || "-"}
-                </Descriptions.Item>
-                <Descriptions.Item label="Activé">
-                  {product.is_active ? "Oui" : "Non"}
+                <Descriptions.Item label="Dernière modification">
+                  {new Date(product.date_modification).toLocaleString()}
                 </Descriptions.Item>
               </Descriptions>
-            </Col>
-          </Row>
+            </Card>
+          </Col>
 
-          <Divider />
-
-          <Title level={4}>Variantes</Title>
-          {variants.length === 0 ? (
-            <div>Aucune variante disponible.</div>
-          ) : (
-            <Table
-              dataSource={variants}
-              columns={variantColumns}
-              rowKey="id"
-              pagination={false}
-              size="small"
-              style={{ marginBottom: 24 }}
-            />
-          )}
-
-          <Divider />
-
-          <Title level={4}>Spécifications</Title>
-          {specifications.length === 0 ? (
-            <div>Aucune spécification disponible.</div>
-          ) : (
-            <List
-              bordered
-              size="small"
-              dataSource={specifications}
-              renderItem={(spec) => (
-                <List.Item>
-                  <b>{spec.spec_key?.nom_attribut || spec.nom_attribut} :</b>{" "}
-                  {spec.valeur}
-                </List.Item>
+          {/* Variantes + Spécifications côte à côte */}
+          <Col flex="400px" style={{ overflowY: 'auto', maxHeight: 480 }}>
+            <Card size="small" title="Variantes" style={{ marginBottom: 16 }}>
+              {product.variants && product.variants.length > 0 ? (
+                <List
+                  dataSource={product.variants}
+                  size="small"
+                  bordered
+                  style={{ maxHeight: 180, overflowY: 'auto' }}
+                  renderItem={item => (
+                    <List.Item>
+                      <List.Item.Meta
+                        title={`${item.nom}: ${item.valeur}`}
+                        description={
+                          <>
+                            Prix suppl. : {item.prix_supplémentaire} € - Stock : {item.stock}
+                            {item.image_url && (
+                              <Image
+                                src={item.image_url}
+                                alt={`${item.nom} ${item.valeur}`}
+                                width={40}
+                                style={{ marginLeft: 8, borderRadius: 6 }}
+                                preview={false}
+                              />
+                            )}
+                          </>
+                        }
+                      />
+                    </List.Item>
+                  )}
+                />
+              ) : (
+                <Paragraph><i>Aucune variante trouvée.</i></Paragraph>
               )}
-              style={{ marginBottom: 24 }}
-            />
-          )}
+            </Card>
 
-          <Divider />
-
-          <Title level={4}>Documents</Title>
-          {documents.length === 0 ? (
-            <div>Aucun document disponible.</div>
-          ) : (
-            <List
-              size="small"
-              dataSource={documents}
-              renderItem={(doc) => (
-                <List.Item>
-                  <a href={doc.url || doc.file_url} target="_blank" rel="noopener noreferrer">
-                    <FileTextOutlined style={{ marginRight: 8 }} />
-                    {doc.name || doc.filename || "Document"}
-                  </a>
-                </List.Item>
+            <Card size="small" title="Spécifications" style={{ maxHeight: 260, overflowY: 'auto' }}>
+              {product.specifications && product.specifications.length > 0 ? (
+                <List
+                  size="small"
+                  bordered
+                  dataSource={product.specifications}
+                  renderItem={item => (
+                    <List.Item>
+                      <strong>{safeGet(item, 'spec_key.nom_attribut')}:</strong> {item.valeur} {item.spec_key.unit || ''}
+                    </List.Item>
+                  )}
+                />
+              ) : (
+                <Paragraph><i>Aucune spécification disponible.</i></Paragraph>
               )}
-            />
-          )}
-        </>
-      )}
+            </Card>
+          </Col>
+        </Row>
+      </div>
     </div>
   );
-}
+};
+
+export default ProductDetailPage;

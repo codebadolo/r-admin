@@ -1,224 +1,234 @@
-import { DeleteOutlined, EditOutlined } from "@ant-design/icons";
+// src/components/product/AttributeSection.js
+
+import React, { useState, useEffect } from 'react';
 import {
+  Table,
   Button,
-  Card,
-  Col,
-  Collapse,
-  Input,
-  List,
-  message,
-  Modal,
-  Row,
   Space,
-  Spin,
-} from "antd";
-import { useEffect, useState } from "react";
-import productService from "../../services/productService"; // IMPORT CORRIGÉ
-import AttributeModalForm from "./AttributeModalForm";
+  Modal,
+  Form,
+  Input,
+  Select,
+  Checkbox,
+  InputNumber,
+  message,
+} from 'antd';
+import * as productService from '../../services/productService';
 
-const { Panel } = Collapse;
-const { Search } = Input;
+const { Option } = Select;
 
-export default function AttributeSection() {
+// Options pour le champ "type de données"
+const DATA_TYPE_OPTIONS = [
+  { label: 'Texte', value: 'string' },
+  { label: 'Nombre entier', value: 'int' },
+  { label: 'Booléen', value: 'bool' },
+  { label: 'Liste', value: 'list' },
+  { label: 'Nombre décimal', value: 'float' },
+];
+
+const AttributeSection = () => {
   const [attributes, setAttributes] = useState([]);
-  const [productTypes, setProductTypes] = useState([]);
   const [loading, setLoading] = useState(false);
+
   const [modalVisible, setModalVisible] = useState(false);
   const [editingAttribute, setEditingAttribute] = useState(null);
-  const [searchText, setSearchText] = useState("");
 
-  const loadData = async () => {
+  const [form] = Form.useForm();
+
+  // Charger les attributs depuis l'API
+  const loadAttributes = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      // Modifier selon vos API - ici j'assume que vous avez getProductAttributes, getProductTypes, getProductAttributeOptions
-      const [attrsRes, typesRes, optionsRes] = await Promise.all([
-        productService.getProductAttributes(),
-        productService.getProductTypes(),
-        productService.getProductAttributeOptions(),
-      ]);
-
-      const attrs = attrsRes.data;
-      const types = typesRes.data;
-      const allOptions = optionsRes.data;
-
-      // Associer options aux attributs par product_attribute (id)
-      const attrsWithOptions = attrs.map((attr) => ({
-        ...attr,
-        options: allOptions.filter(
-          (opt) => opt.product_attribute === attr.id
-        ),
-      }));
-
-      setAttributes(attrsWithOptions);
-      setProductTypes(types);
+      const response = await productService.fetchSpecKeys();
+      const data = Array.isArray(response.data) ? response.data : response.data.results || [];
+      setAttributes(data);
     } catch (error) {
-      message.error("Erreur de chargement");
+      console.error('Erreur chargement des attributs:', error);
+      message.error("Erreur lors du chargement des attributs");
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadData();
+    loadAttributes();
   }, []);
 
-  // Filtre local par nom attribut ou nom type produit
-  const filteredAttributes = attributes.filter((attr) => {
-    const lowerSearch = searchText.toLowerCase();
-    return (
-      attr.name.toLowerCase().includes(lowerSearch) ||
-      (attr.product_type?.name?.toLowerCase().includes(lowerSearch) ?? false)
-    );
-  });
+  // Ouvre le modal en mode création ou édition
+  const openModal = (attribute = null) => {
+    setEditingAttribute(attribute);
+    if (attribute) {
+      form.setFieldsValue(attribute);
+    } else {
+      form.resetFields();
+    }
+    setModalVisible(true);
+  };
 
-  const handleAdd = () => {
+  // Ferme le modal
+  const closeModal = () => {
+    setModalVisible(false);
     setEditingAttribute(null);
-    setModalVisible(true);
   };
 
-  const handleEdit = (attr) => {
-    setEditingAttribute(attr);
-    setModalVisible(true);
+  // Soumet le formulaire : création ou mise à jour
+  const onFinish = async (values) => {
+    try {
+      if (editingAttribute) {
+        await productService.updateSpecKey(editingAttribute.id, values);
+        message.success('Attribut mis à jour avec succès');
+      } else {
+        await productService.createSpecKey(values);
+        message.success('Attribut créé avec succès');
+      }
+      closeModal();
+      loadAttributes();
+    } catch (error) {
+      console.error('Erreur sauvegarde attribut:', error);
+      message.error("Erreur lors de la sauvegarde de l'attribut");
+    }
   };
 
-  const handleDelete = (id) => {
+  // Confirme et supprime un attribut
+  const onDelete = (id) => {
     Modal.confirm({
-      title: "Confirmer suppression",
-      content: "Voulez-vous supprimer cet attribut ?",
-      okText: "Oui",
-      cancelText: "Non",
-      onOk: () => {
-        productService.deleteProductAttribute(id)
-          .then(() => {
-            message.success("Attribut supprimé");
-            loadData();
-          })
-          .catch(() => message.error("Erreur lors de la suppression"));
+      title: 'Confirmer la suppression',
+      content: 'Voulez-vous vraiment supprimer cet attribut ?',
+      okText: 'Oui',
+      okType: 'danger',
+      cancelText: 'Non',
+      onOk: async () => {
+        try {
+          await productService.deleteSpecKey(id);
+          message.success('Attribut supprimé avec succès');
+          loadAttributes();
+        } catch (error) {
+          console.error('Erreur suppression attribut:', error);
+          message.error("Impossible de supprimer l'attribut");
+        }
       },
     });
   };
 
-  const handleDeleteOption = (optionId) => {
-    Modal.confirm({
-      title: "Confirmer suppression",
-      content: "Voulez-vous supprimer cette option ?",
-      okText: "Oui",
-      cancelText: "Non",
-      onOk: () => {
-        productService.deleteProductAttributeValue(optionId)
-          .then(() => {
-            message.success("Option supprimée");
-            loadData();
-          })
-          .catch(() => message.error("Erreur suppression option"));
-      },
-    });
-  };
-
-  const handleSubmit = (values) => {
-    const action = editingAttribute
-      ? productService.updateProductAttribute(editingAttribute.id, values)
-      : productService.createProductAttribute(values);
-    action
-      .then(() => {
-        message.success(
-          `Attribut ${editingAttribute ? "modifié" : "créé"}`
-        );
-        setModalVisible(false);
-        loadData();
-      })
-      .catch(() => message.error("Erreur à l'enregistrement"));
-  };
+  // Colonnes du tableau
+  const columns = [
+    {
+      title: "Nom de l'attribut",
+      dataIndex: 'nom_attribut',
+      key: 'nom_attribut',
+      sorter: (a, b) => (a.nom_attribut || '').localeCompare(b.nom_attribut || ''),
+    },
+    {
+      title: 'Type de données',
+      dataIndex: 'data_type',
+      key: 'data_type',
+      filters: DATA_TYPE_OPTIONS.map(({ label, value }) => ({ text: label, value })),
+      onFilter: (value, record) => record.data_type === value,
+      render: (val) => DATA_TYPE_OPTIONS.find(opt => opt.value === val)?.label || val,
+    },
+    {
+      title: 'Unité',
+      dataIndex: 'unit',
+      key: 'unit',
+      render: (text) => text || '-',
+    },
+    {
+      title: 'Filtrable',
+      dataIndex: 'is_filterable',
+      key: 'is_filterable',
+      filters: [
+        { text: 'Oui', value: true },
+        { text: 'Non', value: false },
+      ],
+      onFilter: (value, record) => record.is_filterable === value,
+      render: (val) => (val ? 'Oui' : 'Non'),
+    },
+    {
+      title: 'Position',
+      dataIndex: 'position',
+      key: 'position',
+      sorter: (a, b) => (a.position || 0) - (b.position || 0),
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      render: (_, record) => (
+        <Space>
+          <Button type="link" onClick={() => openModal(record)}>
+            Modifier
+          </Button>
+          <Button type="link" danger onClick={() => onDelete(record.id)}>
+            Supprimer
+          </Button>
+        </Space>
+      ),
+    },
+  ];
 
   return (
-    <>
-      <Search
-        placeholder="Rechercher un attribut ou type"
-        allowClear
-        onChange={(e) => setSearchText(e.target.value)}
-        style={{ marginBottom: 16, maxWidth: 400 }}
-        enterButton
+    <div>
+      <Space style={{ marginBottom: 16 }}>
+        <Button type="primary" onClick={() => openModal()}>
+          Ajouter un attribut
+        </Button>
+      </Space>
+
+      <Table
+        dataSource={attributes}
+        columns={columns}
+        rowKey="id"
+        loading={loading}
+        pagination={{ pageSize: 10 }}
       />
 
-      <Button
-        type="primary"
-        onClick={handleAdd}
-        style={{ marginBottom: 16, marginLeft: 8 }}
-      >
-        Ajouter un attribut
-      </Button>
-
-      {loading ? (
-        <Spin tip="Chargement..." style={{ display: "block", marginTop: 40 }} />
-      ) : filteredAttributes.length === 0 ? (
-        <div>Aucun attribut disponible.</div>
-      ) : (
-        <Row gutter={[24, 24]}>
-          {filteredAttributes.map((attr) => (
-            <Col key={attr.id} xs={24} sm={24} md={12} lg={8} xl={6}>
-              <Card
-                size="small"
-                title={attr.name}
-                style={{ minWidth: 320 }}
-                extra={
-                  <Space size="middle">
-                    <EditOutlined
-                      style={{ fontSize: 18, cursor: "pointer" }}
-                      onClick={() => handleEdit(attr)}
-                      title="Modifier"
-                    />
-                    <DeleteOutlined
-                      style={{ fontSize: 18, color: "red", cursor: "pointer" }}
-                      onClick={() => handleDelete(attr.id)}
-                      title="Supprimer"
-                    />
-                  </Space>
-                }
-              >
-                <Collapse ghost>
-                  <Panel header={`Options (${attr.options.length})`} key="1">
-                    {attr.options.length === 0 ? (
-                      <div>Aucune option</div>
-                    ) : (
-                      <List
-                        size="small"
-                        bordered
-                        dataSource={attr.options}
-                        renderItem={(option) => (
-                          <List.Item
-                            actions={[
-                              <Button
-                                type="link"
-                                danger
-                                onClick={() => handleDeleteOption(option.id)}
-                              >
-                                Supprimer
-                              </Button>,
-                            ]}
-                          >
-                            {option.name}
-                          </List.Item>
-                        )}
-                      />
-                    )}
-                  </Panel>
-                </Collapse>
-                <div style={{ marginTop: 8 }}>
-                  <b>Type :</b> {attr.product_type?.name || "-"}
-                </div>
-              </Card>
-            </Col>
-          ))}
-        </Row>
-      )}
-
-      <AttributeModalForm
+      <Modal
+        title={editingAttribute ? "Modifier l'attribut" : 'Ajouter un attribut'}
         visible={modalVisible}
-        onCancel={() => setModalVisible(false)}
-        onSubmit={handleSubmit}
-        attribute={editingAttribute}
-        productTypes={productTypes}
-      />
-    </>
+        onCancel={closeModal}
+        onOk={() => form.submit()}
+        okText={editingAttribute ? 'Mettre à jour' : 'Créer'}
+      >
+        <Form
+          form={form}
+          layout="vertical"
+          onFinish={onFinish}
+          initialValues={{ is_filterable: false, position: 0 }}
+        >
+          <Form.Item
+            label="Nom de l'attribut"
+            name="nom_attribut"
+            rules={[{ required: true, message: 'Veuillez saisir le nom de l\'attribut' }]}
+          >
+            <Input />
+          </Form.Item>
+
+          <Form.Item
+            label="Type de données"
+            name="data_type"
+            rules={[{ required: true, message: 'Veuillez sélectionner le type de données' }]}
+          >
+            <Select options={DATA_TYPE_OPTIONS} />
+          </Form.Item>
+
+          <Form.Item label="Unité" name="unit">
+            <Input placeholder="Optionnel (ex: kg, cm)" />
+          </Form.Item>
+
+          <Form.Item name="is_filterable" valuePropName="checked">
+            <Checkbox>Filtrable</Checkbox>
+          </Form.Item>
+
+          <Form.Item
+            label="Position"
+            name="position"
+            rules={[{ required: true, message: 'Veuillez définir la position' }]}
+          >
+            <InputNumber min={0} style={{ width: '100%' }} />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </div>
   );
-}
+};
+
+export default AttributeSection;

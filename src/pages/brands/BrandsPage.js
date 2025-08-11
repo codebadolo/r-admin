@@ -3,7 +3,7 @@ import { useState } from "react";
 import AttributeSection from "../../components/product/AttributeSection";
 import BrandSection from "../../components/brand/BrandSection";
 import CategorySection from "../../components/category/CategorySection";
-import ProductTypeSection from "../../components/product/ProductTypeSection";
+
 
 const { TabPane } = Tabs;
 const { Title, Paragraph } = Typography;
@@ -23,9 +23,7 @@ export default function BrandsPage() {
         <TabPane tab="Catégories" key="categories">
           <CategorySection />
         </TabPane>
-        <TabPane tab="Types de produits" key="types">
-          <ProductTypeSection />
-        </TabPane>
+  
         <TabPane tab="Attributs" key="attributes">
           <AttributeSection />
         </TabPane>

@@ -1,116 +1,154 @@
-import { DeleteOutlined, EditOutlined, PlusOutlined } from "@ant-design/icons";
-import { Button, Card, Col, message, Modal, Row, Spin } from "antd";
-import { useEffect, useState } from "react";
-import productService from "../../services/productService";
-import BrandModalForm from "./BrandModalForm";
+// src/components/brand/BrandSection.js
 
-export default function BrandSection() {
+import React, { useEffect, useState } from 'react';
+import { Table, Button, Space, message, Modal, Form, Input } from 'antd';
+import * as productService from '../../services/productService';
+
+const BrandSection = () => {
   const [brands, setBrands] = useState([]);
   const [loading, setLoading] = useState(false);
+
   const [modalVisible, setModalVisible] = useState(false);
   const [editingBrand, setEditingBrand] = useState(null);
+
+  const [form] = Form.useForm();
+
+  // Charger la liste des marques
+  const loadBrands = async () => {
+    setLoading(true);
+    try {
+      const response = await productService.fetchBrands();
+      const data = Array.isArray(response.data) ? response.data : response.data.results || [];
+      setBrands(data);
+    } catch (error) {
+      console.error('Erreur chargement marques:', error);
+      message.error('Erreur lors du chargement des marques');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     loadBrands();
   }, []);
 
-  const loadBrands = () => {
-    setLoading(true);
-    productService.getBrands()
-      .then(res => setBrands(res.data))
-      .catch(() => message.error("Erreur chargement marques"))
-      .finally(() => setLoading(false));
-  };
-
-  const handleAdd = () => {
-    setEditingBrand(null);
-    setModalVisible(true);
-  };
-
-  const handleEdit = (brand) => {
+  // Ouvrir modal et reset formulaire
+  const openModal = (brand = null) => {
     setEditingBrand(brand);
+    if (brand) {
+      form.setFieldsValue(brand);
+    } else {
+      form.resetFields();
+    }
     setModalVisible(true);
   };
 
-  const handleDelete = (id) => {
-    Modal.confirm({
-      title: "Confirmer la suppression",
-      content: "Voulez-vous vraiment supprimer cette marque?",
-      okText: "Oui",
-      cancelText: "Non",
-      onOk: () => {
-        productService.deleteBrand(id)
-          .then(() => {
-            message.success("Marque supprimée");
-            loadBrands();
-          })
-          .catch(() => message.error("Erreur suppression"));
-      },
-    });
+  // Fermer modal
+  const closeModal = () => {
+    setModalVisible(false);
+    setEditingBrand(null);
   };
 
-  const handleSubmit = (values) => {
-    const formData = new FormData();
-    formData.append("name", values.name);
-    if (values.logoFile) {
-      formData.append("logo", values.logoFile);
+  // Sauvegarder marque (création ou mise à jour)
+  const onFinish = async (values) => {
+    try {
+      if (editingBrand) {
+        await productService.updateBrand(editingBrand.id, values);
+        message.success('Marque mise à jour avec succès');
+      } else {
+        await productService.createBrand(values);
+        message.success('Marque créée avec succès');
+      }
+      closeModal();
+      loadBrands();
+    } catch (error) {
+      console.error('Erreur sauvegarde marque:', error);
+      message.error('Erreur lors de la sauvegarde de la marque');
     }
-    const req = editingBrand
-      ? productService.updateBrand(editingBrand.id, formData)
-      : productService.createBrand(formData);
-
-    req
-      .then(() => {
-        message.success(`Marque ${editingBrand ? "modifiée" : "créée"} avec succès`);
-        setModalVisible(false);
-        loadBrands();
-      })
-      .catch(() => message.error("Erreur sauvegarde"));
   };
+
+  const columns = [
+    {
+      title: 'Nom',
+      dataIndex: 'nom',
+      key: 'nom',
+    },
+    {
+      title: 'Description',
+      dataIndex: 'description',
+      key: 'description',
+      ellipsis: true,
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      render: (_, record) => (
+        <Space>
+          <Button type="link" onClick={() => openModal(record)}>
+            Modifier
+          </Button>
+          <Button
+            type="link"
+            danger
+            onClick={async () => {
+              try {
+                await productService.deleteBrand(record.id);
+                message.success('Marque supprimée');
+                loadBrands();
+              } catch (error) {
+                console.error('Erreur suppression marque:', error);
+                message.error("Impossible de supprimer la marque");
+              }
+            }}
+          >
+            Supprimer
+          </Button>
+        </Space>
+      ),
+    },
+  ];
 
   return (
     <div>
-      <Button type="primary" onClick={handleAdd} style={{ marginBottom: 16 }} icon={<PlusOutlined />}>
-        Ajouter une marque
-      </Button>
+      <Space style={{ marginBottom: 16 }}>
+        <Button type="primary" onClick={() => openModal()}>
+          Ajouter une marque
+        </Button>
+      </Space>
 
-      {loading ? (
-        <Spin tip="Chargement..." style={{ display: "block", margin: "40px auto" }} />
-      ) : brands.length === 0 ? (
-        <div>Aucune marque disponible.</div>
-      ) : (
-        <Row gutter={[16, 16]}>
-          {brands.map((brand) => (
-            <Col key={brand.id} xs={24} sm={12} md={8} lg={6} xl={4}>
-              <Card
-                size="small"
-                title={brand.name}
-                cover={
-                  brand.logo ? (
-                    <img
-                      src={brand.logo}
-                      alt={`${brand.name} logo`}
-                      style={{ height: 100, objectFit: "contain", padding: 12, background: "#fff" }}
-                    />
-                  ) : null
-                }
-                actions={[
-                  <Button type="text" icon={<EditOutlined />} onClick={() => handleEdit(brand)} key="edit" title="Modifier" />,
-                  <Button type="text" danger icon={<DeleteOutlined />} onClick={() => handleDelete(brand.id)} key="delete" title="Supprimer" />,
-                ]}
-                style={{ height: "100%" }}
-              />
-            </Col>
-          ))}
-        </Row>
-      )}
-
-      <BrandModalForm
-        visible={modalVisible}
-        onCancel={() => setModalVisible(false)}
-        onSubmit={handleSubmit}
-        brand={editingBrand}
+      <Table
+        dataSource={brands}
+        columns={columns}
+        rowKey="id"
+        loading={loading}
+        pagination={{ pageSize: 10 }}
       />
+
+      <Modal
+        title={editingBrand ? 'Modifier la marque' : 'Ajouter une marque'}
+        visible={modalVisible}
+        onCancel={closeModal}
+        onOk={() => {
+          form.submit();
+        }}
+        okText={editingBrand ? 'Mettre à jour' : 'Créer'}
+      >
+        <Form form={form} layout="vertical" onFinish={onFinish}>
+          <Form.Item
+            label="Nom"
+            name="nom"
+            rules={[{ required: true, message: 'Veuillez entrer le nom de la marque' }]}
+          >
+            <Input />
+          </Form.Item>
+
+          <Form.Item label="Description" name="description">
+            <Input.TextArea rows={3} />
+          </Form.Item>
+        </Form>
+      </Modal>
     </div>
   );
-}
+};
+
+export default BrandSection;

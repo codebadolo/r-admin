@@ -22,7 +22,7 @@ import BrandsPage from './pages/brands/BrandsPage';
 import CataloguePage from './pages/products/CataloguePage';
 import CategoriesPage from './pages/categories/CategoriesPage';
 import MediaPage from './pages/products/ProduitMedia';   // si MediaPage déplacé sous products
-import ProductTypesPage from './pages/products/ProductTypesPage';
+
 import ProfilePage from './pages/users/ProfilePage'; // ou autre dossier si déplacé
 import ProfileEditPage from './pages/users/ProfileEditPage';
 import ChangePasswordPage from './pages/users/ChangePasswordPage'
@@ -72,7 +72,7 @@ function App() {
 
                       <Route path="/products/brands" element={<BrandsPage />} />
                       <Route path="/products/categories" element={<CategoriesPage />} />
-                      <Route path="/products/types" element={<ProductTypesPage />} />
+
                       <Route path="/products/attributes" element={<AttributesPage />} />
                       <Route path="/products/inventories" element={<VariantsPage />} />
                       <Route path="/products/inventories" element={<VariantsPage />} />

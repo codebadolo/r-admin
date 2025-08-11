@@ -1,296 +1,186 @@
-import React, { useEffect, useState } from "react";
-import {
-  Button,
-  Col,
-  Form,
-  InputNumber,
-  message,
-  Modal,
-  Row,
-  Select,
-  Space,
-  Spin,
-  Table,
-} from "antd";
-import productService from "../../services/productService";
+// src/pages/stock/StockManagement.js
 
-const { Option } = Select;
+import React, { useEffect, useState } from 'react';
+import { Table, Typography, message, Space, Tag, Divider } from 'antd';
+import * as productService from '../../services/productService';
 
-export default function StockManagement() {
-  const [stocks, setStocks] = useState([]);
-  const [warehouses, setWarehouses] = useState([]);
-  const [products, setProducts] = useState([]);
-  const [variants, setVariants] = useState([]);
+const { Title } = Typography;
 
-  const [loading, setLoading] = useState(false);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [editingStock, setEditingStock] = useState(null);
-  const [form] = Form.useForm();
+const StockManagement = () => {
+  const [stockLevels, setStockLevels] = useState([]);
+  const [stockMovements, setStockMovements] = useState([]);
+  const [loadingLevels, setLoadingLevels] = useState(false);
+  const [loadingMovements, setLoadingMovements] = useState(false);
 
-  // Charger données nécessaires au chargement
+  // Chargement niveaux de stock
+  const loadStockLevels = async () => {
+    setLoadingLevels(true);
+    try {
+      const response = await productService.fetchStockLevels();
+      const data = Array.isArray(response.data) ? response.data : response.data.results || [];
+      setStockLevels(data);
+    } catch (error) {
+      console.error("Erreur chargement des niveaux de stock:", error);
+      message.error("Erreur lors du chargement des niveaux de stock");
+    } finally {
+      setLoadingLevels(false);
+    }
+  };
+
+  // Chargement mouvements de stock
+  const loadStockMovements = async () => {
+    setLoadingMovements(true);
+    try {
+      const response = await productService.fetchStockMovements();
+      const data = Array.isArray(response.data) ? response.data : response.data.results || [];
+      setStockMovements(data);
+    } catch (error) {
+      console.error("Erreur chargement des mouvements de stock:", error);
+      message.error("Erreur lors du chargement des mouvements de stock");
+    } finally {
+      setLoadingMovements(false);
+    }
+  };
+
   useEffect(() => {
-    loadInitialData();
+    loadStockLevels();
+    loadStockMovements();
   }, []);
 
-  const loadInitialData = async () => {
-    setLoading(true);
-    try {
-      const [stocksRes, whRes, productsRes, variantsRes] = await Promise.all([
-        productService.getStockLevels(),
-        productService.getWarehouses(),
-        productService.getProducts(),
-        productService.getVariants(),
-      ]);
-      setStocks(stocksRes.data);
-      setWarehouses(whRes.data);
-      setProducts(productsRes.data);
-      setVariants(variantsRes.data);
-    } catch (error) {
-      message.error("Erreur lors du chargement des données");
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Helper pour sécuriser accès aux champs
+  const safeGet = (obj, path, def = '-') =>
+    path.split('.').reduce((acc, key) => (acc && acc[key] != null ? acc[key] : null), obj) || def;
 
-  // Ouvrir modal ajout ou édition avec données préremplies
-  const openModal = (stock = null) => {
-    setEditingStock(stock);
-
-    if (stock) {
-      form.setFieldsValue({
-        warehouse: stock.warehouse,
-        product: stock.product,
-        variant: stock.variant || null,
-        stock_total: stock.stock_total,
-        stock_reserve: stock.stock_reserve || 0,
-        seuil_alerte: stock.seuil_alerte || 0,
-      });
-    } else {
-      form.resetFields();
-    }
-    setModalVisible(true);
-  };
-
-  const closeModal = () => {
-    setModalVisible(false);
-    setEditingStock(null);
-    form.resetFields();
-  };
-
-  // Gestion changement produit : filtrer variantes de ce produit
-  const onProductChange = (productId) => {
-    form.setFieldsValue({ variant: null });
-  };
-
-  // Soumission formulaire create/update stock
-  const onSubmit = async (values) => {
-    try {
-      if (!values.warehouse || !values.product) {
-        message.error("Veuillez sélectionner un produit et un entrepôt");
-        return;
-      }
-      if (editingStock) {
-        await productService.updateStockLevel(editingStock.id, values);
-        message.success("Stock mis à jour");
-      } else {
-        await productService.createStockLevel(values);
-        message.success("Stock créé");
-      }
-      closeModal();
-      loadInitialData();
-    } catch (error) {
-      message.error("Erreur lors de la sauvegarde");
-    }
-  };
-
-  // Suppression stock
-  const onDelete = (stockId) => {
-    Modal.confirm({
-      title: "Confirmer la suppression",
-      content: "Voulez-vous vraiment supprimer ce stock ?",
-      okText: "Oui",
-      cancelText: "Non",
-      onOk: async () => {
-        try {
-          await productService.deleteStockLevel(stockId);
-          message.success("Stock supprimé");
-          loadInitialData();
-        } catch {
-          message.error("Erreur lors de la suppression");
-        }
-      },
-    });
-  };
-
-  // Colonnes table
-  const columns = [
+  // Colonnes pour niveaux de stock
+  const columnsStockLevels = [
     {
-      title: "Produit",
-      dataIndex: ["product", "nom"],
-      key: "product",
-      render: (_, record) => record.product?.nom || "-",
-      sorter: (a, b) => (a.product?.nom || "").localeCompare(b.product?.nom || ""),
+      title: 'Entrepôt',
+      key: 'warehouse',
+      render: (record) => safeGet(record, 'warehouse.nom'),
+      sorter: (a, b) => safeGet(a, 'warehouse.nom').localeCompare(safeGet(b, 'warehouse.nom')),
     },
     {
-      title: "Variante",
-      dataIndex: ["variant", "nom"],
-      key: "variant",
-      render: (_, record) => record.variant?.nom || "-",
+      title: 'Produit',
+      key: 'product',
+      render: (record) => safeGet(record, 'product.nom'),
+      sorter: (a, b) => safeGet(a, 'product.nom').localeCompare(safeGet(b, 'product.nom')),
     },
     {
-      title: "Entrepôt",
-      dataIndex: ["warehouse", "nom"],
-      key: "warehouse",
-      render: (_, record) => record.warehouse?.nom || "-",
-      sorter: (a, b) => (a.warehouse?.nom || "").localeCompare(b.warehouse?.nom || ""),
+      title: 'Variante',
+      key: 'variant',
+      render: (record) => safeGet(record, 'variant.nom', '-'),
+      sorter: (a, b) =>
+        safeGet(a, 'variant.nom', '').localeCompare(safeGet(b, 'variant.nom', '')),
     },
     {
-      title: "Stock total",
-      dataIndex: "stock_total",
-      key: "stock_total",
-      sorter: (a, b) => a.stock_total - b.stock_total,
+      title: 'Stock total',
+      dataIndex: 'stock_total',
+      key: 'stock_total',
+      sorter: (a, b) => (a.stock_total || 0) - (b.stock_total || 0),
     },
     {
-      title: "Stock réservé",
-      dataIndex: "stock_reserve",
-      key: "stock_reserve",
+      title: 'Stock réservé',
+      dataIndex: 'stock_reserve',
+      key: 'stock_reserve',
       sorter: (a, b) => (a.stock_reserve || 0) - (b.stock_reserve || 0),
     },
     {
-      title: "Seuil d'alerte",
-      dataIndex: "seuil_alerte",
-      key: "seuil_alerte",
+      title: 'Seuil d\'alerte',
+      dataIndex: 'seuil_alerte',
+      key: 'seuil_alerte',
       sorter: (a, b) => (a.seuil_alerte || 0) - (b.seuil_alerte || 0),
-    },
-    {
-      title: "Actions",
-      key: "actions",
-      render: (_, record) => (
-        <Space size="middle">
-          <Button type="link" onClick={() => openModal(record)}>
-            Modifier
-          </Button>
-          <Button type="link" danger onClick={() => onDelete(record.id)}>
-            Supprimer
-          </Button>
-        </Space>
-      ),
+      render: (value, record) => {
+        if ((record.stock_total || 0) <= (record.seuil_alerte || 0)) {
+          return <Tag color="red">{value}</Tag>;
+        }
+        return value;
+      },
     },
   ];
 
-  // Variantes filtrées par produit sélectionné dans formulaire
-  const filteredVariants = variants.filter(v => {
-    const prodId = form.getFieldValue("product");
-    return prodId ? v.product === prodId : true;
-  });
+  // Colonnes pour mouvements de stock
+  const columnsStockMovements = [
+    {
+      title: 'Date',
+      dataIndex: 'date_mouvement',
+      key: 'date_mouvement',
+      sorter: (a, b) => new Date(a.date_mouvement) - new Date(b.date_mouvement),
+      render: (date) => new Date(date).toLocaleString(),
+    },
+    {
+      title: 'Entrepôt',
+      key: 'warehouse',
+      render: (record) => safeGet(record, 'warehouse.nom'),
+      sorter: (a, b) => safeGet(a, 'warehouse.nom').localeCompare(safeGet(b, 'warehouse.nom')),
+    },
+    {
+      title: 'Produit',
+      key: 'product',
+      render: (record) => safeGet(record, 'product.nom'),
+      sorter: (a, b) => safeGet(a, 'product.nom').localeCompare(safeGet(b, 'product.nom')),
+    },
+    {
+      title: 'Variante',
+      key: 'variant',
+      render: (record) => safeGet(record, 'variant.nom', '-'),
+      sorter: (a, b) =>
+        safeGet(a, 'variant.nom', '').localeCompare(safeGet(b, 'variant.nom', '')),
+    },
+    {
+      title: 'Type Mouvement',
+      dataIndex: 'mouvement_type',
+      key: 'mouvement_type',
+      filters: [
+        { text: 'Entrée', value: 'entrée' },
+        { text: 'Sortie', value: 'sortie' },
+        { text: 'Réservation', value: 'réservation' },
+        // Ajouter d’autres selon vos types exacts
+      ],
+      onFilter: (value, record) => (record.mouvement_type || '').toLowerCase() === value,
+      render: (value) =>
+        value ? value.charAt(0).toUpperCase() + value.slice(1) : '-',
+    },
+    {
+      title: 'Quantité',
+      dataIndex: 'quantite',
+      key: 'quantite',
+      sorter: (a, b) => (a.quantite || 0) - (b.quantite || 0),
+    },
+    {
+      title: 'Commentaire',
+      dataIndex: 'commentaire',
+      key: 'commentaire',
+      ellipsis: true,
+      render: (text) => text || '-',
+    },
+  ];
 
   return (
-    <div style={{ maxWidth: 900, margin: "20px auto" }}>
-      <h2>Gestion des stocks</h2>
+    <div style={{ padding: 24, backgroundColor: '#fff' }}>
+      <Title level={2}>Gestion des Stocks</Title>
 
-      {loading ? (
-        <Spin tip="Chargement des stocks..." />
-      ) : (
-        <>
-          <Button
-            type="primary"
-            onClick={() => openModal()}
-            style={{ marginBottom: 16 }}
-          >
-            Ajouter un stock
-          </Button>
+      <Title level={4}>Niveaux de Stock</Title>
+      <Table
+        columns={columnsStockLevels}
+        dataSource={stockLevels}
+        rowKey={(record) => record.id}
+        loading={loadingLevels}
+        pagination={{ pageSize: 10 }}
+        style={{ marginBottom: 32 }}
+      />
 
-          <Table
-            dataSource={stocks}
-            columns={columns}
-            rowKey="id"
-            pagination={{ pageSize: 10 }}
-          />
+      <Divider />
 
-          <Modal
-            open={modalVisible}
-            title={editingStock ? "Modifier le stock" : "Ajouter un stock"}
-            onCancel={closeModal}
-            onOk={() => form.submit()}
-            destroyOnClose
-          >
-            <Form form={form} layout="vertical" onFinish={onSubmit}>
-              <Form.Item
-                name="warehouse"
-                label="Entrepôt"
-                rules={[{ required: true, message: "Veuillez sélectionner un entrepôt" }]}
-              >
-                <Select placeholder="Sélectionnez un entrepôt" showSearch optionFilterProp="children">
-                  {warehouses.map(w => (
-                    <Option key={w.id} value={w.id}>
-                      {w.nom || w.name}
-                    </Option>
-                  ))}
-                </Select>
-              </Form.Item>
-
-              <Form.Item
-                name="product"
-                label="Produit"
-                rules={[{ required: true, message: "Veuillez sélectionner un produit" }]}
-              >
-                <Select
-                  placeholder="Sélectionnez un produit"
-                  showSearch
-                  optionFilterProp="children"
-                  onChange={onProductChange}
-                >
-                  {products.map(p => (
-                    <Option key={p.id} value={p.id}>
-                      {p.nom || p.name}
-                    </Option>
-                  ))}
-                </Select>
-              </Form.Item>
-
-              <Form.Item
-                name="variant"
-                label="Variante (optionnel)"
-              >
-                <Select
-                  placeholder="Sélectionnez une variante"
-                  showSearch
-                  optionFilterProp="children"
-                  disabled={!form.getFieldValue("product")}
-                >
-                  {filteredVariants.map(v => (
-                    <Option key={v.id} value={v.id}>
-                      {v.nom || v.name}
-                    </Option>
-                  ))}
-                </Select>
-              </Form.Item>
-
-              <Form.Item
-                name="stock_total"
-                label="Stock total"
-                rules={[{ required: true, message: "Veuillez saisir le stock total" }]}
-              >
-                <InputNumber min={0} style={{ width: "100%" }} />
-              </Form.Item>
-
-              <Form.Item
-                name="stock_reserve"
-                label="Stock réservé"
-              >
-                <InputNumber min={0} style={{ width: "100%" }} />
-              </Form.Item>
-
-              <Form.Item
-                name="seuil_alerte"
-                label="Seuil d'alerte"
-              >
-                <InputNumber min={0} style={{ width: "100%" }} />
-              </Form.Item>
-            </Form>
-          </Modal>
-        </>
-      )}
+      <Title level={4}>Mouvements de Stock</Title>
+      <Table
+        columns={columnsStockMovements}
+        dataSource={stockMovements}
+        rowKey={(record) => record.id}
+        loading={loadingMovements}
+        pagination={{ pageSize: 10 }}
+      />
     </div>
   );
-}
+};
+
+export default StockManagement;

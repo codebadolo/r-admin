@@ -1,212 +1,193 @@
-import { Button, Form, Input, message, Modal, Select, Space, Spin, Tree } from "antd";
-import { useEffect, useState } from "react";
-import productService from "../../services/productService";
+// src/components/category/CategorySection.js
 
+import React, { useEffect, useState } from 'react';
+import { Table, Button, Space, Modal, Form, Input, Select, message } from 'antd';
+import * as productService from '../../services/productService';
 
-// Construction de l’arbre compatible avec la structure retournée
-// Ici on assume que chaque catégorie a : { id, name, parent: null | objet { id, name } }
-// On utilise parentId comme id parent attendu, donc si parent est objet, on utilise parent.id
-function buildTreeSelectable(categories, parentId = null) {
-  return categories
-    .filter(cat => {
-      // parent peut être null ou un objet avec id
-      const pId = cat.parent ? (typeof cat.parent === "object" ? cat.parent.id : cat.parent) : null;
-      return pId === parentId;
-    })
-    .map(cat => {
-      const children = buildTreeSelectable(categories, cat.id);
-      return {
-        title: cat.name,
-        key: cat.id,
-        children,
-        // On autorise la sélection uniquement sur les catégories sans enfants
-        selectable: children.length === 0,
-      };
-    });
-}
+const { Option } = Select;
 
-export default function CategorySection() {
+const CategorySection = () => {
   const [categories, setCategories] = useState([]);
-  const [treeData, setTreeData] = useState([]);
-  const [selectedKey, setSelectedKey] = useState(null);
-  const [editingCategory, setEditingCategory] = useState(null);
-  const [modalVisible, setModalVisible] = useState(false);
   const [loading, setLoading] = useState(false);
-
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editingCategory, setEditingCategory] = useState(null);
   const [form] = Form.useForm();
 
   // Chargement des catégories
-  const loadCategories = () => {
+  const loadCategories = async () => {
     setLoading(true);
-    productService.getCategories()
-      .then(res => {
-        // res.data doit être la liste effective des catégories
-        const cats = res.data;
-
-        // Normalisation: convertir les parents en id ou null
-        // Certains API renvoient parent en objet, ici on garde la structure complète
-        setCategories(cats);
-
-        // Construction de l’arbre
-        setTreeData(buildTreeSelectable(cats));
-      })
-      .catch(() => message.error("Erreur de chargement des catégories"))
-      .finally(() => setLoading(false));
+    try {
+      const response = await productService.fetchCategories();
+      const data = Array.isArray(response.data) ? response.data : response.data.results || [];
+      setCategories(data);
+    } catch (error) {
+      console.error('Erreur chargement catégories:', error);
+      message.error("Erreur lors du chargement des catégories");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     loadCategories();
   }, []);
 
-  const onSelect = (selectedKeys, info) => {
-    if (!info.node) return;
-
-    // Sélection uniquement si node.selectable (pas parent)
-    if (!info.node.selectable) {
-      message.warning("Veuillez sélectionner uniquement une catégorie sans enfant");
-      return;
-    }
-
-    if (selectedKeys.length === 0) {
-      setSelectedKey(null);
-      setEditingCategory(null);
-      form.resetFields();
-    } else {
-      const id = selectedKeys[0];
-      setSelectedKey(id);
-
-      // Trouver la catégorie sélectionnée dans categories
-      const cat = categories.find(c => c.id === id);
-      setEditingCategory(cat);
-
+  // Ouvrir modal (création ou modification)
+  const openModal = (category = null) => {
+    setEditingCategory(category);
+    if (category) {
+      // Préparer les valeurs formulaire, notamment parent_category en ID
       form.setFieldsValue({
-        name: cat.name,
-        // remonter id du parent ou null
-        parent: cat.parent ? (typeof cat.parent === "object" ? cat.parent.id : cat.parent) : null,
+        ...category,
+        parent_category: category.parent_category ? category.parent_category.id : null,
       });
+    } else {
+      form.resetFields();
     }
+    setModalVisible(true);
   };
 
-  const openAddModal = () => {
+  // Fermer modal
+  const closeModal = () => {
+    setModalVisible(false);
     setEditingCategory(null);
-    setModalVisible(true);
-    form.resetFields();
   };
 
-  const openEditModal = () => {
-    if (!editingCategory) {
-      message.warn("Veuillez sélectionner une catégorie à modifier");
-      return;
+  // Envoi formulaire création/modification
+  const onFinish = async (values) => {
+    try {
+      if (editingCategory) {
+        await productService.updateCategory(editingCategory.id, values);
+        message.success('Catégorie mise à jour avec succès');
+      } else {
+        await productService.createCategory(values);
+        message.success('Catégorie créée avec succès');
+      }
+      closeModal();
+      loadCategories();
+    } catch (error) {
+      console.error('Erreur sauvegarde catégorie:', error);
+      message.error("Erreur lors de la sauvegarde de la catégorie");
     }
-    setModalVisible(true);
   };
 
-  const handleDelete = () => {
-    if (!editingCategory) {
-      message.warn("Veuillez sélectionner une catégorie à supprimer");
-      return;
-    }
+  // Supprimer une catégorie avec confirmation
+  const onDelete = (id) => {
     Modal.confirm({
-      title: "Confirmer la suppression",
-      content: "Voulez-vous vraiment supprimer cette catégorie ?",
-      okText: "Oui",
-      cancelText: "Non",
-      onOk: () => {
-        productService.deleteCategory(editingCategory.id)
-          .then(() => {
-            message.success("Catégorie supprimée");
-            setSelectedKey(null);
-            setEditingCategory(null);
-            form.resetFields();
-            loadCategories();
-          })
-          .catch(() => message.error("Erreur lors de la suppression"));
+      title: 'Confirmer la suppression',
+      content: 'Voulez-vous vraiment supprimer cette catégorie ?',
+      okText: 'Oui',
+      okType: 'danger',
+      cancelText: 'Non',
+      onOk: async () => {
+        try {
+          await productService.deleteCategory(id);
+          message.success('Catégorie supprimée');
+          loadCategories();
+        } catch (error) {
+          console.error('Erreur suppression catégorie:', error);
+          message.error("Impossible de supprimer la catégorie");
+        }
       },
     });
   };
 
-  const handleSubmit = () => {
-    form.validateFields().then(values => {
-      // Construire la payload API
-      const data = {
-        name: values.name,
-        parent: values.parent || null,
-      };
-
-      const action = editingCategory
-        ? productService.updateCategory(editingCategory.id, data)
-        : productService.createCategory(data);
-
-      action
-        .then(() => {
-          message.success(`Catégorie ${editingCategory ? "modifiée" : "créée"} avec succès`);
-          setModalVisible(false);
-          setSelectedKey(null);
-          setEditingCategory(null);
-          form.resetFields();
-          loadCategories();
-        })
-        .catch(() => message.error("Erreur à l'enregistrement"));
-    });
-  };
+  // Colonnes du tableau
+  const columns = [
+    {
+      title: 'Nom',
+      dataIndex: 'nom',
+      key: 'nom',
+      sorter: (a, b) => (a.nom || '').localeCompare(b.nom || ''),
+    },
+    {
+      title: 'Catégorie Parente',
+      key: 'parent_category',
+      render: (record) => record.parent_category?.nom || '-',
+      sorter: (a, b) => {
+        const aName = a.parent_category?.nom || '';
+        const bName = b.parent_category?.nom || '';
+        return aName.localeCompare(bName);
+      },
+    },
+    {
+      title: 'Description',
+      dataIndex: 'description',
+      key: 'description',
+      ellipsis: true,
+      render: (text) => text || '-',
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      render: (_, record) => (
+        <Space>
+          <Button type="link" onClick={() => openModal(record)}>Modifier</Button>
+          <Button type="link" danger onClick={() => onDelete(record.id)}>Supprimer</Button>
+        </Space>
+      ),
+    },
+  ];
 
   return (
-    <>
+    <div>
       <Space style={{ marginBottom: 16 }}>
-        <Button type="primary" onClick={openAddModal}>
+        <Button type="primary" onClick={() => openModal()}>
           Ajouter une catégorie
-        </Button>
-        <Button disabled={!editingCategory} onClick={openEditModal}>
-          Modifier la catégorie sélectionnée
-        </Button>
-        <Button danger disabled={!editingCategory} onClick={handleDelete}>
-          Supprimer la catégorie sélectionnée
         </Button>
       </Space>
 
-      {loading ? (
-        <Spin />
-      ) : (
-        <Tree
-          showLine
-          defaultExpandAll
-          treeData={treeData}
-          onSelect={onSelect}
-          selectedKeys={selectedKey ? [selectedKey] : []}
-        />
-      )}
+      <Table
+        dataSource={categories}
+        columns={columns}
+        rowKey="id"
+        loading={loading}
+        pagination={{ pageSize: 10 }}
+      />
 
       <Modal
-        title={editingCategory ? "Modifier une catégorie" : "Ajouter une catégorie"}
+        title={editingCategory ? 'Modifier la catégorie' : 'Ajouter une catégorie'}
         visible={modalVisible}
-        onCancel={() => setModalVisible(false)}
-        onOk={handleSubmit}
-        destroyOnClose
+        onCancel={closeModal}
+        onOk={() => form.submit()}
+        okText={editingCategory ? 'Mettre à jour' : 'Créer'}
       >
-        <Form form={form} layout="vertical" initialValues={{ parent: null }}>
+        <Form form={form} layout="vertical" onFinish={onFinish}>
           <Form.Item
-            name="name"
-            label="Nom de la catégorie"
-            rules={[{ required: true, message: "Veuillez saisir un nom" }]}
+            label="Nom"
+            name="nom"
+            rules={[{ required: true, message: 'Veuillez saisir le nom de la catégorie' }]}
           >
             <Input />
           </Form.Item>
 
-          <Form.Item name="parent" label="Catégorie parente (optionnel)">
+          <Form.Item label="Catégorie Parente" name="parent_category">
             <Select
               allowClear
-              placeholder="Choisir une catégorie parente"
-              options={categories
-                // Ne pas autoriser un choix avec la catégorie même pour éviter boucle
-                .filter(cat => !editingCategory || cat.id !== editingCategory.id)
-                .map(cat => ({
-                  value: cat.id,
-                  label: cat.name,
-                }))}
-            />
+              placeholder="Sélectionnez une catégorie parente (optionnel)"
+              showSearch
+              optionFilterProp="children"
+              filterOption={(input, option) =>
+                option.children.toLowerCase().includes(input.toLowerCase())
+              }
+            >
+              {categories
+                .filter((cat) => !editingCategory || cat.id !== editingCategory.id) // ne pas permettre de choisir soi-même comme parent
+                .map(cat => (
+                  <Option key={cat.id} value={cat.id}>
+                    {cat.nom}
+                  </Option>
+              ))}
+            </Select>
+          </Form.Item>
+
+          <Form.Item label="Description" name="description">
+            <Input.TextArea rows={3} />
           </Form.Item>
         </Form>
       </Modal>
-    </>
+    </div>
   );
-}
+};
+
+export default CategorySection;
