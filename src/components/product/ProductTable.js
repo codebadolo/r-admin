@@ -254,7 +254,7 @@ const ProductTable = () => {
       sorter: (a, b) => (a.ean_code || '').localeCompare(b.ean_code || ''),
     },
     {
-      title: 'Produit actif',
+      title: 'actif',
       dataIndex: 'is_active',
       key: 'is_active',
       filters: [
@@ -265,14 +265,14 @@ const ProductTable = () => {
       render: (val) => (val ? 'Oui' : 'Non'),
     },
     {
-      title: 'Date création',
+      title: 'Date crea',
       dataIndex: 'date_creation',
       key: 'date_creation',
       sorter: (a, b) => new Date(a.date_creation) - new Date(b.date_creation),
       render: (date) => (date ? new Date(date).toLocaleDateString() : '-'),
     },
     {
-      title: 'Date modification',
+      title: 'Date mod',
       dataIndex: 'date_modification',
       key: 'date_modification',
       sorter: (a, b) => new Date(a.date_modification) - new Date(b.date_modification),
