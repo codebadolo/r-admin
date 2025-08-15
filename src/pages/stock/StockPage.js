@@ -1,33 +1,20 @@
+import React, { useState } from "react";
 import { Button, Divider } from "antd";
-import { useState } from "react";
 import StockManagement from "./StockManagement";
 import StockStatistics from "./StockStatistics";
 
-
-
 export default function StockPage() {
-  const [showStats, setShowStats] = useState(false);
+  const [showStats, setShowStats] = useState(true);
 
   return (
-    <div
-      style={{
+    <div style={{ maxWidth: '100%', margin: "auto", padding: 4 }}>
       
-        margin: "auto",
-        padding: 2,
-       
-      }}
-    >
+      {showStats ? (
+             <StockManagement onSwitch={() => setShowStats(true)} />
+      ) : (
+           <StockStatistics onSwitch={() => setShowStats(false)} />
 
-      <Button
-        onClick={() => setShowStats(!showStats)}
-        style={{ marginBottom: 2}}
-      >
-        {showStats ? "Voir la gestion détaillée" : "Voir les statistiques"}
-      </Button>
-
-      <Divider />
-
-      {showStats ? <StockStatistics /> : <StockManagement maxWidth={2000} />}
+      )}
     </div>
   );
 }

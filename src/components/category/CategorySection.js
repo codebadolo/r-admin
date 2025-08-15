@@ -1,7 +1,6 @@
-// src/components/category/CategorySection.js
-
 import React, { useEffect, useState } from 'react';
-import { Table, Button, Space, Modal, Form, Input, Select, message } from 'antd';
+import { Table, Button, Space, Modal, Form, Input, Select, message, Tooltip } from 'antd';
+import { EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import * as productService from '../../services/productService';
 
 const { Option } = Select;
@@ -13,12 +12,56 @@ const CategorySection = () => {
   const [editingCategory, setEditingCategory] = useState(null);
   const [form] = Form.useForm();
 
-  // Chargement des catégories
+  // Fonction pour transformer la liste plate des catégories en arbre pour Table.treeData
+  const buildTreeData = (items) => {
+    const map = {};
+    const roots = [];
+
+    // Préparer les noeuds
+    items.forEach(cat => {
+      map[cat.id] = {
+        key: cat.id,
+        id: cat.id,
+        nom: cat.nom,
+        parent_category: cat.parent_category,
+        children: [],
+      };
+    });
+
+    // Remplir les enfants
+    items.forEach(cat => {
+      if (cat.parent_category) {
+        const parent = map[cat.parent_category];
+        if (parent) {
+          parent.children.push(map[cat.id]);
+        } else {
+          // cas parent non trouvé, traiter comme racine
+          roots.push(map[cat.id]);
+        }
+      } else {
+        roots.push(map[cat.id]);
+      }
+    });
+
+    // Optionnel : trier enfants par nom
+    const sortTree = (nodes) => {
+      nodes.sort((a, b) => a.nom.localeCompare(b.nom));
+      nodes.forEach(n => n.children && sortTree(n.children));
+    };
+
+    sortTree(roots);
+
+    return roots;
+  };
+
+  // Chargement des catégories depuis l'API
   const loadCategories = async () => {
     setLoading(true);
     try {
       const response = await productService.fetchCategories();
-      const data = Array.isArray(response.data) ? response.data : response.data.results || [];
+      const data = Array.isArray(response.data)
+        ? response.data
+        : response.data.results || [];
       setCategories(data);
     } catch (error) {
       console.error('Erreur chargement catégories:', error);
@@ -32,14 +75,13 @@ const CategorySection = () => {
     loadCategories();
   }, []);
 
-  // Ouvrir modal (création ou modification)
+  // Ouvre modal avec chargement des valeurs si édition
   const openModal = (category = null) => {
     setEditingCategory(category);
     if (category) {
-      // Préparer les valeurs formulaire, notamment parent_category en ID
       form.setFieldsValue({
         ...category,
-        parent_category: category.parent_category ? category.parent_category.id : null,
+        parent_category: category.parent_category ? category.parent_category : null,
       });
     } else {
       form.resetFields();
@@ -47,13 +89,13 @@ const CategorySection = () => {
     setModalVisible(true);
   };
 
-  // Fermer modal
+  // Ferme la modal et reset l'état
   const closeModal = () => {
     setModalVisible(false);
     setEditingCategory(null);
   };
 
-  // Envoi formulaire création/modification
+  // Soumission du formulaire création/modification
   const onFinish = async (values) => {
     try {
       if (editingCategory) {
@@ -71,7 +113,7 @@ const CategorySection = () => {
     }
   };
 
-  // Supprimer une catégorie avec confirmation
+  // Suppression avec modal de confirmation
   const onDelete = (id) => {
     Modal.confirm({
       title: 'Confirmer la suppression',
@@ -92,7 +134,7 @@ const CategorySection = () => {
     });
   };
 
-  // Colonnes du tableau
+  // Colonnes du tableau (sans description, avec arborescence)
   const columns = [
     {
       title: 'Nom',
@@ -103,31 +145,47 @@ const CategorySection = () => {
     {
       title: 'Catégorie Parente',
       key: 'parent_category',
-      render: (record) => record.parent_category?.nom || '-',
+      render: (record) => {
+        // Affiche le parent par nom ou '-'
+        const parentCat = categories.find(c => c.id === record.parent_category);
+        return parentCat ? parentCat.nom : '-';
+      },
       sorter: (a, b) => {
-        const aName = a.parent_category?.nom || '';
-        const bName = b.parent_category?.nom || '';
+        const aName = categories.find(c => c.id === a.parent_category)?.nom || '';
+        const bName = categories.find(c => c.id === b.parent_category)?.nom || '';
         return aName.localeCompare(bName);
       },
     },
     {
-      title: 'Description',
-      dataIndex: 'description',
-      key: 'description',
-      ellipsis: true,
-      render: (text) => text || '-',
-    },
-    {
       title: 'Actions',
       key: 'actions',
+      width: 110,
       render: (_, record) => (
-        <Space>
-          <Button type="link" onClick={() => openModal(record)}>Modifier</Button>
-          <Button type="link" danger onClick={() => onDelete(record.id)}>Supprimer</Button>
+        <Space size="middle">
+          <Tooltip title="Modifier">
+            <Button
+              type="text"
+              icon={<EditOutlined />}
+              onClick={() => openModal(record)}
+              aria-label={`Modifier catégorie ${record.nom}`}
+            />
+          </Tooltip>
+          <Tooltip title="Supprimer">
+            <Button
+              type="text"
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => onDelete(record.id)}
+              aria-label={`Supprimer catégorie ${record.nom}`}
+            />
+          </Tooltip>
         </Space>
       ),
     },
   ];
+
+  // Préparer données arborescentes pour Table
+  const treeData = buildTreeData(categories);
 
   return (
     <div>
@@ -138,11 +196,14 @@ const CategorySection = () => {
       </Space>
 
       <Table
-        dataSource={categories}
+        dataSource={treeData}
         columns={columns}
         rowKey="id"
+        size='small'
         loading={loading}
         pagination={{ pageSize: 10 }}
+        bordered
+
       />
 
       <Modal
@@ -151,8 +212,9 @@ const CategorySection = () => {
         onCancel={closeModal}
         onOk={() => form.submit()}
         okText={editingCategory ? 'Mettre à jour' : 'Créer'}
+        destroyOnClose
       >
-        <Form form={form} layout="vertical" onFinish={onFinish}>
+        <Form form={form} layout="vertical" onFinish={onFinish} preserve={false}>
           <Form.Item
             label="Nom"
             name="nom"
@@ -170,19 +232,16 @@ const CategorySection = () => {
               filterOption={(input, option) =>
                 option.children.toLowerCase().includes(input.toLowerCase())
               }
+              notFoundContent="Aucune catégorie"
             >
               {categories
-                .filter((cat) => !editingCategory || cat.id !== editingCategory.id) // ne pas permettre de choisir soi-même comme parent
-                .map(cat => (
+                .filter((cat) => !editingCategory || cat.id !== editingCategory.id)
+                .map((cat) => (
                   <Option key={cat.id} value={cat.id}>
                     {cat.nom}
                   </Option>
-              ))}
+                ))}
             </Select>
-          </Form.Item>
-
-          <Form.Item label="Description" name="description">
-            <Input.TextArea rows={3} />
           </Form.Item>
         </Form>
       </Modal>

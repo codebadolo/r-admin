@@ -114,7 +114,7 @@ const SidebarMenu = () => {
             <Menu.Item key="/products/catalogue">Catalogue</Menu.Item>
             {(hasRole('SuperAdmin', 'Gestionnaire Produit', 'Admin')) && <Menu.Item key="/products/brands">Marques</Menu.Item>}
             <Menu.Item key="/products/categories">Catégories</Menu.Item>
-            <Menu.Item key="/products/types">Types</Menu.Item>
+    
             <Menu.Item key="/products/attributes">Attributs</Menu.Item>
             <Menu.Item key="/products/media">Documents & Images</Menu.Item>
             <Menu.Item key="/products/stock">Stock</Menu.Item>
