@@ -35,7 +35,7 @@ export const updateRole = (id, data) => api.put(`${BASE_ROLES_URL}${id}/`, data)
 
 export const deleteRole = (id) => api.delete(`${BASE_USER_ROLES_URL}${id}/`);
 export function fetchCurrentUser() {
-  return api.get("/users/me/");
+  return api.get("/users/users/me/");
 }
 // Permissions
 export const fetchPermissions = () => api.get(BASE_PERMISSIONS_URL);

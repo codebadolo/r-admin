@@ -26,14 +26,14 @@ export default function AddressModalForm({
         raison_sociale: address.raison_sociale || "",
         rccm: address.rccm || "",
         ifu: address.ifu || "",
-        forme_juridique_id: address.forme_juridique_id || null,
-        regime_fiscal_id: address.regime_fiscal_id || null,
-        division_fiscale_id: address.division_fiscale_id || null,
+        forme_juridique_id: address.forme_juridique_id ?? address.forme_juridique?.id ?? null,
+        regime_fiscal_id: address.regime_fiscal_id ?? address.regime_fiscal?.id ?? null,
+        division_fiscale_id: address.division_fiscale_id ?? address.division_fiscale?.id ?? null,
         rue: address.rue || "",
         numero: address.numero || "",
         ville: address.ville || "",
         code_postal: address.code_postal || "",
-        pays_id: address.pays_id || null,
+        pays_id: address.pays_id ?? address.pays?.id ?? null,
         livraison_identique_facturation: address.livraison_identique_facturation ?? true,
       });
     } else {

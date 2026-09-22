@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Instance axios configurée (optionnel)
 const api = axios.create({
-  baseURL: 'http://127.0.0.1:8000/api', // URL de base de votre API Django
+  baseURL: 'http://127.0.0.1:8004/api', // URL de base de votre API Django
   headers: {
     'Content-Type': 'application/json',
   },

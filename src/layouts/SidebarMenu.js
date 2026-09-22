@@ -27,11 +27,14 @@ const SidebarMenu = () => {
 
   const toggleCollapsed = () => setCollapsed(!collapsed);
 
-  // Check if user has any of the given roles (match by role.name)
+  // Check if user has any of the given roles. `user.roles` can be an array of
+  // strings (réponse de /login/) ou d'objets {name} (réponse de /users/me/).
+  // Le staff (is_staff) voit toujours tout, quel que soit son rôle métier.
   const hasRole = (...roleNames) => {
-    if (!user?.roles_detail) return false;  // Adjust if your user object has roles as 'roles_detail'
+    if (user?.is_staff) return true;
+    const roles = user?.roles || [];
     return roleNames.some((roleName) =>
-      user.roles_detail.some((r) => r.name === roleName)
+      roles.some((r) => (typeof r === 'string' ? r === roleName : r?.name === roleName))
     );
   };
 
@@ -48,9 +51,9 @@ const SidebarMenu = () => {
       path.startsWith('/connections')
     )
       setOpenKeys(['users']);
-    else if (path.startsWith('/orders') || path.startsWith('/payments') || path.startsWith('/delivery'))
+    else if (path.startsWith('/orders') || path.startsWith('/payments') || path.startsWith('/delivery') || path.startsWith('/devis'))
       setOpenKeys(['logistics']);
-    else if (path.startsWith('/promotions') || path.startsWith('/coupons'))
+    else if (path.startsWith('/promotions') || path.startsWith('/coupons') || path.startsWith('/avis'))
       setOpenKeys(['promotions']);
     else if (path.startsWith('/marketing') || path.startsWith('/newsletters'))
       setOpenKeys(['marketing']);
@@ -143,12 +146,14 @@ const SidebarMenu = () => {
             <Menu.Item key="/orders">Commandes</Menu.Item>
             <Menu.Item key="/payments">Paiements</Menu.Item>
             <Menu.Item key="/delivery">Livraison</Menu.Item>
+            <Menu.Item key="/devis">Devis</Menu.Item>
           </SubMenu>
         )}
 
         {(hasRole('SuperAdmin', 'ResponsableMarketing')) && (
           <SubMenu key="marketing" icon={<MailOutlined />} title="Marketing & Promotions">
             <Menu.Item key="/promotions">Promotions</Menu.Item>
+            <Menu.Item key="/avis">Avis produits</Menu.Item>
             <Menu.Item key="/coupons">Coupons</Menu.Item>
             <Menu.Item key="/campaigns">Campagnes marketing</Menu.Item>
             <Menu.Item key="/newsletters">Newsletters</Menu.Item>

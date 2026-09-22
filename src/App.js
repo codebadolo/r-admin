@@ -44,6 +44,9 @@ import AddressesPage from './pages/addresses/AddressesPage';
 import ProductDetailPage from './pages/products/ProductDetailPage';
 import ReportsPage from './pages/marketing/ReportsPage';
 import SettingsPage from './pages/marketing/SettingsPage';
+import PromotionsPage from './pages/marketing/PromotionsPage';
+import QuotesPage from './pages/devis/QuotesPage';
+import AvisPage from './pages/avis/AvisPage';
 
 // Import des autres pages protégées
 
@@ -102,6 +105,9 @@ function App() {
                       <Route path="/delivery" element={<DeliveryPage />} />
                       <Route path="/reports" element={<ReportsPage />} />
                       <Route path="/settings" element={<SettingsPage />} />
+                      <Route path="/promotions" element={<PromotionsPage />} />
+                      <Route path="/devis" element={<QuotesPage />} />
+                      <Route path="/avis" element={<AvisPage />} />
                     </Routes>
                   </MainLayout>
                 </PrivateRoute>

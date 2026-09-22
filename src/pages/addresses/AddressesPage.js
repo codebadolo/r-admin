@@ -17,6 +17,8 @@ import {
   HomeOutlined,
   FileExcelOutlined,
   EyeOutlined,
+  EditOutlined,
+  PlusOutlined,
   ProfileOutlined,
   UsergroupAddOutlined,
   TeamOutlined,
@@ -26,6 +28,8 @@ import {
 import { useNavigate } from "react-router-dom";
 import api from "../../services/api";
 import * as XLSX from "xlsx";
+import AddressModalForm from "./AddressModalForm";
+import { createAddress, updateAddress } from "../../services/userServices";
 
 const { Title } = Typography;
 
@@ -40,6 +44,9 @@ const [pagination, setPagination] = useState({ current: 1, pageSize: 11 });
   const [formesJuridique, setFormesJuridique] = useState([]);
   const [regimesFiscaux, setRegimesFiscaux] = useState([]);
   const [divisionsFiscales, setDivisionsFiscales] = useState([]);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [editingAddress, setEditingAddress] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
 
   // Etats pour filtrage et tri AntD Table contrôlés
   const [filteredInfo, setFilteredInfo] = useState({});
@@ -119,6 +126,37 @@ const [pagination, setPagination] = useState({ current: 1, pageSize: 11 });
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Adresses");
     XLSX.writeFile(workbook, "adresses_export.xlsx");
+  };
+
+  const handleAdd = () => {
+    setEditingAddress(null);
+    setModalVisible(true);
+  };
+
+  const handleEdit = (address) => {
+    setEditingAddress(address);
+    setModalVisible(true);
+  };
+
+  const handleModalSubmit = async (values) => {
+    setSubmitting(true);
+    try {
+      if (editingAddress) {
+        await updateAddress(editingAddress.id, values);
+        message.success("Adresse modifiée");
+      } else {
+        await createAddress(values);
+        message.success("Adresse créée");
+      }
+      setModalVisible(false);
+      setEditingAddress(null);
+      await loadData();
+    } catch (error) {
+      message.error("Erreur lors de l'enregistrement de l'adresse");
+      console.error(error);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // Statistiques basiques à afficher
@@ -250,13 +288,18 @@ const [pagination, setPagination] = useState({ current: 1, pageSize: 11 });
       width: 10,
       height: 10,
       render: (_, record) => (
-        <Button
-          type="link"
-          icon={<EyeOutlined />}
-          onClick={() => navigate(`/users/${record.utilisateur}`)}
-        >
-         
-        </Button>
+        <Space>
+          <Button
+            type="link"
+            icon={<EditOutlined />}
+            onClick={() => handleEdit(record)}
+          />
+          <Button
+            type="link"
+            icon={<EyeOutlined />}
+            onClick={() => navigate(`/users/${record.utilisateur}`)}
+          />
+        </Space>
       ),
     },
   ];
@@ -274,14 +317,18 @@ const [pagination, setPagination] = useState({ current: 1, pageSize: 11 });
         </Breadcrumb>
       </Col>
       <Col>
-        <Button
-          type="primary"
-          icon={<FileExcelOutlined />}
-          onClick={exportToExcel}
-          disabled={loading}
-        >
-          Exporter la liste en Excel
-        </Button>
+        <Space>
+          <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
+            Ajouter une adresse
+          </Button>
+          <Button
+            icon={<FileExcelOutlined />}
+            onClick={exportToExcel}
+            disabled={loading}
+          >
+            Exporter la liste en Excel
+          </Button>
+        </Space>
       </Col>
     </Row>
  
@@ -371,6 +418,21 @@ const [pagination, setPagination] = useState({ current: 1, pageSize: 11 });
       bordered
     />
       </Spin>
+
+      <AddressModalForm
+        visible={modalVisible}
+        onCancel={() => {
+          setModalVisible(false);
+          setEditingAddress(null);
+        }}
+        onSubmit={handleModalSubmit}
+        address={editingAddress}
+        loading={submitting}
+        paysList={paysList}
+        formesJuridique={formesJuridique}
+        regimesFiscaux={regimesFiscaux}
+        divisionsFiscales={divisionsFiscales}
+      />
     </div>
   );
 }
